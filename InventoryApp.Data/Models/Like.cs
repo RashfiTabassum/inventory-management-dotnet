@@ -1,12 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace InventoryApp.Data.Models
+﻿namespace InventoryApp.Data.Models
 {
-    internal class Like
+    public class Like
     {
+        public int Id { get; set; }
+
+        public int ItemId { get; set; }
+
+        public Item Item { get; set; } = null!;
+
+        public string UserId { get; set; } = string.Empty;
+
+        public ApplicationUser User { get; set; } = null!;
     }
 }

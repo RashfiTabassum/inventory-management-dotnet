@@ -1,12 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace InventoryApp.Data.Models
+﻿namespace InventoryApp.Data.Models
 {
-    internal class CustomFieldValue
+    public class CustomFieldValue
     {
+        public int Id { get; set; }
+
+        public string Value { get; set; } = string.Empty;
+
+        public int ItemId { get; set; }
+
+        public Item Item { get; set; } = null!;
+
+        public int CustomFieldId { get; set; }
+
+        public CustomField CustomField { get; set; } = null!;
     }
 }
