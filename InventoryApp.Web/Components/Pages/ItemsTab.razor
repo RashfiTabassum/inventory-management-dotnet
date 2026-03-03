@@ -1,0 +1,148 @@
+﻿@rendermode InteractiveServer
+@inject ItemService ItemService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+@if (_items == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    @if (_hasWriteAccess)
+    {
+        <div class="mb-3">
+            <button class="btn btn-primary" @onclick="() => _showCreateForm = true">
+                + Add Item
+            </button>
+        </div>
+    }
+
+    @if (_showCreateForm)
+    {
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5>New Item</h5>
+                <div class="mb-2">
+                    <label class="form-label">Name *</label>
+                    <input class="form-control" @bind="_newItemName" />
+                </div>
+                <button class="btn btn-success" @onclick="HandleCreateItem">
+                    Save
+                </button>
+                <button class="btn btn-secondary ms-2"
+                        @onclick="() => _showCreateForm = false">
+                    Cancel
+                </button>
+                @if (_createError != null)
+                {
+                    <div class="alert alert-danger mt-2">@_createError</div>
+                }
+            </div>
+        </div>
+    }
+
+    @if (_items.Count == 0)
+    {
+        <p>No items yet.</p>
+    }
+    else
+    {
+        <table class="table table-hover table-bordered">
+            <thead>
+                <tr>
+                    <th>Custom ID</th>
+                    <th>Name</th>
+                    <th>Created By</th>
+                    <th>Created At</th>
+                    <th>Likes</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in _items)
+                {
+                    <tr @onclick="() => GoToItem(item.Id)"
+                        style="cursor: pointer;">
+                        <td>@item.CustomId</td>
+                        <td>@item.Name</td>
+                        <td>@item.CreatedBy.Email</td>
+                        <td>@item.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</td>
+                        <td>@item.Likes.Count</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    [Parameter]
+    public int InventoryId { get; set; }
+
+    [Parameter]
+    public bool IsOwnerOrAdmin { get; set; }
+
+    private List<Item>? _items;
+    private bool _hasWriteAccess = false;
+    private bool _showCreateForm = false;
+    private string _newItemName = string.Empty;
+    private string? _createError;
+    private string? _currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider
+            .GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        _currentUserId = user.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (_currentUserId != null)
+        {
+            _hasWriteAccess = IsOwnerOrAdmin ||
+                await ItemService.HasWriteAccessAsync(
+                    InventoryId, _currentUserId);
+        }
+
+        await LoadItemsAsync();
+    }
+
+    private async Task LoadItemsAsync()
+    {
+        _items = await ItemService.GetByInventoryAsync(InventoryId);
+    }
+
+    private async Task HandleCreateItem()
+    {
+        if (string.IsNullOrWhiteSpace(_newItemName))
+        {
+            _createError = "Name is required.";
+            return;
+        }
+
+        if (_currentUserId == null) return;
+
+        var item = new Item
+            {
+                Name = _newItemName.Trim(),
+                CustomId = string.Empty,
+                InventoryId = InventoryId,
+                CreatedById = _currentUserId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+        await ItemService.CreateAsync(item);
+
+        _newItemName = string.Empty;
+        _showCreateForm = false;
+        _createError = null;
+
+        await LoadItemsAsync();
+    }
+
+    private void GoToItem(int id)
+    {
+        Navigation.NavigateTo($"/items/{id}");
+    }
+}

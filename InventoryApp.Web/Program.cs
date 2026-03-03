@@ -11,7 +11,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection")));
+
 builder.Services.AddScoped<InventoryApp.Data.Services.InventoryService>();
+builder.Services.AddScoped<InventoryApp.Data.Services.ItemService>();
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {

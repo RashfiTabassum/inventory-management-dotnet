@@ -69,7 +69,7 @@ else
     <!-- Tab Content -->
     @if (ActiveTab == "items")
     {
-        <p>Items tab — coming soon</p>
+        <ItemsTab InventoryId="Id" IsOwnerOrAdmin="_isOwnerOrAdmin" />
     }
     else if (ActiveTab == "discussion")
     {
