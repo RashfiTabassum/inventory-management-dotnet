@@ -1,15 +1,27 @@
 ﻿@inherits LayoutComponentBase
+@inject NavigationManager Navigation
 
 <div class="page">
     <div class="sidebar">
         <NavMenu />
     </div>
-
     <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        <div class="top-row px-4 d-flex justify-content-end align-items-center">
+            <AuthorizeView> @* a Blazor component that shows different content based on whether the user is logged in or not. *@
+                <Authorized> @* this content only shows when user is logged in. *@
+					<span class="me-3">Hello, @context.User.Identity!.Name</span> @* shows the name of the logged in user. *@
+                    <a href="/account/logout" class="btn btn-sm btn-outline-secondary">
+                        Logout
+                    </a>
+                </Authorized>
+				<NotAuthorized>
+					@* this content only shows when user is not logged in. *@
+                    <a href="/account/login" class="btn btn-sm btn-outline-primary">
+                        Login
+                    </a>
+                </NotAuthorized>
+            </AuthorizeView>
         </div>
-
         <article class="content px-4">
             @Body
         </article>

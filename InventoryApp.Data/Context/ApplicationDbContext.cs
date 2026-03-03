@@ -26,10 +26,10 @@ namespace InventoryApp.Data.Context
 
             // Fix multiple cascade paths
             modelBuilder.Entity<Comment>()
-                .HasOne(c => c.Author)
-                .WithMany()
-                .HasForeignKey(c => c.AuthorId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .HasOne(c => c.Author) // a comment has one author
+                .WithMany() // an author can have many comments, but we don't need to define the navigation property on the ApplicationUser side
+                .HasForeignKey(c => c.AuthorId) // the foreign key in the Comment table that references the ApplicationUser
+                .OnDelete(DeleteBehavior.Restrict); // prevent cascade delete to avoid multiple cascade paths. This means that if a user is deleted, their comments will not be automatically deleted, and the foreign key will not be set to null. You may want to handle this manually in your application logic (e.g., by reassigning comments to a "deleted user" account or by deleting comments when a user is deleted).
 
             modelBuilder.Entity<Inventory>()
                 .HasOne(i => i.Owner)
