@@ -1,0 +1,105 @@
+﻿@page "/inventories/create"
+@rendermode InteractiveServer
+@inject InventoryApp.Data.Services.InventoryService InventoryService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Create Inventory</PageTitle>
+
+<h3>Create New Inventory</h3>
+
+<AuthorizeView Roles="User">
+    <Authorized>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label">Name *</label>
+                    <input class="form-control" @bind="_name" />
+                    @if (_showErrors && string.IsNullOrWhiteSpace(_name))
+                    {
+                        <span class="text-danger">Name is required.</span>
+                    }
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" rows="3" @bind="_description"></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Category</label>
+                    <select class="form-select" @bind="_category">
+                        @foreach (var cat in Enum.GetValues<InventoryCategory>())
+                        {
+                            <option value="@cat">@cat</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox"
+                               @bind="_isPublicWrite" />
+                        <label class="form-check-label">
+                            Public (all authenticated users can add items)
+                        </label>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" @onclick="HandleCreate">
+                    Create Inventory
+                </button>
+                <a href="/inventories" class="btn btn-secondary ms-2">Cancel</a>
+
+                @if (_errorMessage != null)
+                {
+                    <div class="alert alert-danger mt-3">@_errorMessage</div>
+                }
+            </div>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <p>You must be logged in to create inventories.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+    private InventoryCategory _category = InventoryCategory.Other;
+    private bool _isPublicWrite = false;
+    private bool _showErrors = false;
+    private string? _errorMessage;
+
+    private async Task HandleCreate()
+    {   
+        Console.WriteLine("HandleCreate called");
+        _showErrors = true;
+
+        if (string.IsNullOrWhiteSpace(_name))
+            return;
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (userId == null)
+        {
+            _errorMessage = "You must be logged in.";
+            return;
+        }
+
+        var inventory = new InventoryApp.Data.Models.Inventory
+            {
+                Name = _name.Trim(),
+                Description = _description.Trim(),
+                Category = _category,
+                IsPublicWrite = _isPublicWrite,
+                OwnerId = userId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+        var created = await InventoryService.CreateAsync(inventory);
+        Navigation.NavigateTo($"/inventories/{created.Id}");
+    }
+}

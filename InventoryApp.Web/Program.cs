@@ -11,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddScoped<InventoryApp.Data.Services.InventoryService>();
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
@@ -57,4 +58,12 @@ app.MapRazorPages();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
+using (var scope = app.Services.CreateScope())
+{
+    await InventoryApp.Data.Seeding.RoleSeeder
+        .SeedRolesAsync(scope.ServiceProvider);
+
+    await InventoryApp.Data.Seeding.AdminSeeder
+        .SeedAdminAsync(scope.ServiceProvider, "rashfi2004@gmail.com");
+}
 app.Run();

@@ -72,6 +72,9 @@ namespace InventoryApp.Web.Pages
                 return Content("FAILED: CreateAsync: " +
                     string.Join(", ", createResult.Errors.Select(e => e.Description)));
 
+            // Automatically assign User role to every new registrant
+            await _userManager.AddToRoleAsync(user, "User");
+
             await _userManager.AddLoginAsync(user, info);
             await _signInManager.SignInAsync(user, isPersistent: true);
             return Redirect("/");

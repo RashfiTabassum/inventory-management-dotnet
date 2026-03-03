@@ -1,8 +1,14 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using Azure;
 
 namespace InventoryApp.Data.Models
 {
+    public enum InventoryCategory
+    {
+        Equipment,
+        Furniture,
+        Book,
+        Other
+    }
     public class Inventory
     {
         public int Id { get; set; }
@@ -32,5 +38,7 @@ namespace InventoryApp.Data.Models
         public ICollection<InventoryAccess> AccessList { get; set; } = new List<InventoryAccess>();
 
         public ICollection<Comment> Comments { get; set; } = new List<Comment>();
+        public InventoryCategory Category { get; set; } = InventoryCategory.Other;
+        public int Version { get; set; } = 1;
     }
 }

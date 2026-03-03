@@ -1,0 +1,72 @@
+﻿@page "/inventories"
+@rendermode InteractiveServer
+@inject InventoryApp.Data.Services.InventoryService InventoryService
+@inject NavigationManager Navigation
+
+<PageTitle>Inventories</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Inventories</h3>
+    <AuthorizeView Roles="User">
+        <Authorized>
+            <a href="/inventories/create" class="btn btn-primary">
+                + New Inventory
+            </a>
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+@if (_inventories == null)
+{
+    <p>Loading...</p>
+}
+else if (_inventories.Count == 0)
+{
+    <p>No inventories found.</p>
+}
+else
+{
+    <table class="table table-hover table-bordered">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Owner</th>
+                <th>Created</th>
+                <th>Tags</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var inv in _inventories)
+            {
+                <tr @onclick="() => GoToInventory(inv.Id)"
+                    style="cursor: pointer;">
+                    <td>@inv.Name</td>
+                    <td>@inv.Category</td>
+                    <td>@inv.Owner.Email</td>
+                    <td>@inv.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</td>
+                    <td>
+                        @foreach (var tag in inv.Tags)
+                        {
+                            <span class="badge bg-secondary me-1">@tag.Name</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<InventoryApp.Data.Models.Inventory>? _inventories;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _inventories = await InventoryService.GetLatestInventoriesAsync(50);
+    }
+
+    private void GoToInventory(int id)
+    {
+        Navigation.NavigateTo($"/inventories/{id}");
+    }
+}

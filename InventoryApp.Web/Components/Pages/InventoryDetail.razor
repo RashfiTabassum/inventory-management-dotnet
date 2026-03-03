@@ -1,0 +1,129 @@
+﻿@page "/inventories/{Id:int}"
+@rendermode InteractiveServer
+@inject InventoryApp.Data.Services.InventoryService InventoryService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>@(_inventory?.Name ?? "Inventory")</PageTitle>
+
+@if (_inventory == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>@_inventory.Name</h3>
+        <span class="badge bg-secondary">@_inventory.Category</span>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <button class="nav-link @(ActiveTab == "items" ? "active" : "")"
+                    @onclick='() => ActiveTab = "items"'>
+                Items
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(ActiveTab == "discussion" ? "active" : "")"
+                    @onclick='() => ActiveTab = "discussion"'>
+                Discussion
+            </button>
+        </li>
+        @if (_isOwnerOrAdmin)
+        {
+            <li class="nav-item">
+                <button class="nav-link @(ActiveTab == "settings" ? "active" : "")"
+                        @onclick='() => ActiveTab = "settings"'>
+                    Settings
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(ActiveTab == "fields" ? "active" : "")"
+                        @onclick='() => ActiveTab = "fields"'>
+                    Custom Fields
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(ActiveTab == "access" ? "active" : "")"
+                        @onclick='() => ActiveTab = "access"'>
+                    Access
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(ActiveTab == "customid" ? "active" : "")"
+                        @onclick='() => ActiveTab = "customid"'>
+                    Custom ID
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(ActiveTab == "statistics" ? "active" : "")"
+                        @onclick='() => ActiveTab = "statistics"'>
+                    Statistics
+                </button>
+            </li>
+        }
+    </ul>
+
+    <!-- Tab Content -->
+    @if (ActiveTab == "items")
+    {
+        <p>Items tab — coming soon</p>
+    }
+    else if (ActiveTab == "discussion")
+    {
+        <p>Discussion tab — coming soon</p>
+    }
+    else if (ActiveTab == "settings")
+    {
+        <p>Settings tab — coming soon</p>
+    }
+    else if (ActiveTab == "fields")
+    {
+        <p>Custom Fields tab — coming soon</p>
+    }
+    else if (ActiveTab == "access")
+    {
+        <p>Access tab — coming soon</p>
+    }
+    else if (ActiveTab == "customid")
+    {
+        <p>Custom ID tab — coming soon</p>
+    }
+    else if (ActiveTab == "statistics")
+    {
+        <p>Statistics tab — coming soon</p>
+    }
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private InventoryApp.Data.Models.Inventory? _inventory;
+    private string ActiveTab = "items";
+    private bool _isOwnerOrAdmin = false;
+    private string? _currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _inventory = await InventoryService.GetByIdAsync(Id);
+
+        if (_inventory == null)
+        {
+            Navigation.NavigateTo("/inventories");
+            return;
+        }
+
+        var authState = await AuthStateProvider
+            .GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        _currentUserId = user.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        var isAdmin = user.IsInRole("Admin");
+        _isOwnerOrAdmin = isAdmin || _inventory.OwnerId == _currentUserId;
+    }
+}
