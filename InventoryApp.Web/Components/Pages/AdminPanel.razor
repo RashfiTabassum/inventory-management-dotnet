@@ -1,0 +1,175 @@
+﻿@page "/admin"
+@rendermode InteractiveServer
+@inject AdminService AdminService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Admin Panel</PageTitle>
+
+<AuthorizeView Roles="Admin">
+    <Authorized>
+        <h3>Admin Panel</h3>
+        <p class="text-muted">User Management</p>
+
+        @if (_users == null)
+        {
+            <p>Loading...</p>
+        }
+        else
+        {
+            <table class="table table-hover table-bordered">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Roles</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in _users)
+                    {
+                        <tr>
+                            <td>@entry.User.Email</td>
+                            <td>
+                                @string.Join(", ", entry.Roles)
+                            </td>
+                            <td>
+                                @if (entry.User.IsBlocked)
+                                {
+                                    <span class="badge bg-danger">Blocked</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                            </td>
+                            <td>
+                                @if (entry.User.Id != _currentUserId)
+                                {
+                                    @if (entry.User.IsBlocked)
+                                    {
+                                        <button class="btn btn-sm btn-success me-1"
+                                                @onclick="() => HandleUnblock(entry.User.Id)">
+                                            Unblock
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-warning me-1"
+                                                @onclick="() => HandleBlock(entry.User.Id)">
+                                            Block
+                                        </button>
+                                    }
+
+                                    @if (entry.Roles.Contains("Admin"))
+                                    {
+                                        <button class="btn btn-sm btn-outline-secondary me-1"
+                                                @onclick="() => HandleRemoveAdmin(entry.User.Id)">
+                                            Remove Admin
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary me-1"
+                                                @onclick="() => HandleAddAdmin(entry.User.Id)">
+                                            Make Admin
+                                        </button>
+                                    }
+
+                                    <button class="btn btn-sm btn-danger"
+                                            @onclick="() => HandleDelete(entry.User.Id)">
+                                        Delete
+                                    </button>
+                                }
+                                else
+                                {
+                                    @if (entry.Roles.Contains("Admin"))
+                                    {
+                                        <button class="btn btn-sm btn-outline-secondary"
+                                                @onclick="() => HandleRemoveAdmin(entry.User.Id)">
+                                            Remove My Admin
+                                        </button>
+                                    }
+                                    <span class="text-muted ms-2">(You)</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (_message != null)
+        {
+            <div class="alert alert-info mt-3">@_message</div>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>Access denied. Admins only.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private List<UserWithRoles>? _users;
+    private string? _currentUserId;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider
+            .GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        _currentUserId = user.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (!user.IsInRole("Admin"))
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        await LoadUsersAsync();
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        _users = await AdminService.GetAllUsersAsync();
+    }
+
+    private async Task HandleBlock(string userId)
+    {
+        await AdminService.BlockUserAsync(userId);
+        _message = "User blocked successfully.";
+        await LoadUsersAsync();
+    }
+
+    private async Task HandleUnblock(string userId)
+    {
+        await AdminService.UnblockUserAsync(userId);
+        _message = "User unblocked successfully.";
+        await LoadUsersAsync();
+    }
+
+    private async Task HandleDelete(string userId)
+    {
+        await AdminService.DeleteUserAsync(userId);
+        _message = "User deleted successfully.";
+        await LoadUsersAsync();
+    }
+
+    private async Task HandleAddAdmin(string userId)
+    {
+        await AdminService.AddAdminRoleAsync(userId);
+        _message = "Admin role added.";
+        await LoadUsersAsync();
+    }
+
+    private async Task HandleRemoveAdmin(string userId)
+    {
+        await AdminService.RemoveAdminRoleAsync(userId);
+        _message = "Admin role removed.";
+        await LoadUsersAsync();
+    }
+}
