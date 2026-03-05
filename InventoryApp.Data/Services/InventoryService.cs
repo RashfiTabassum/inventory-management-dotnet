@@ -130,5 +130,24 @@ namespace InventoryApp.Data.Services
                 })
                 .ToListAsync();
         }
+
+        public async Task<List<Inventory>> GetInventoriesWithWriteAccessAsync(string userId)
+        {
+            return await _db.InventoryAccesses
+                .Include(a => a.Inventory)
+                    .ThenInclude(i => i.Owner)
+                .Where(a => a.UserId == userId)
+                .Select(a => new Inventory
+                {
+                    Id = a.Inventory.Id,
+                    Name = a.Inventory.Name,
+                    Description = a.Inventory.Description,
+                    Category = a.Inventory.Category,
+                    CreatedAt = a.Inventory.CreatedAt,
+                    OwnerId = a.Inventory.OwnerId,
+                    Owner = a.Inventory.Owner
+                })
+                .ToListAsync();
+        }
     }
 }

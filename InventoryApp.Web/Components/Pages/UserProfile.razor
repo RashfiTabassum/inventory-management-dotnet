@@ -1,0 +1,244 @@
+﻿@page "/profile"
+@rendermode InteractiveServer
+@inject InventoryService InventoryService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>My Profile</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        <h3>My Profile</h3>
+        <p class="text-muted">@context.User.Identity!.Name</p>
+
+        <hr />
+
+        <!-- Owned Inventories -->
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5>My Inventories</h5>
+            <a href="/inventories/create" class="btn btn-primary btn-sm">
+                + New Inventory
+            </a>
+        </div>
+
+        @if (_ownedInventories == null)
+        {
+            <p>Loading...</p>
+        }
+        else if (_ownedInventories.Count == 0)
+        {
+            <p class="text-muted">You haven't created any inventories yet.</p>
+        }
+        else
+        {
+            <table class="table table-hover table-bordered mb-4">
+                <thead>
+                    <tr>
+                        <th @onclick='() => SortOwned("name")' 
+                            style="cursor:pointer">
+                            Name @SortIcon(_ownedSortField, "name")
+                        </th>
+                        <th @onclick='() => SortOwned("category")' 
+                            style="cursor:pointer">
+                            Category @SortIcon(_ownedSortField, "category")
+                        </th>
+                        <th @onclick='() => SortOwned("date")' 
+                            style="cursor:pointer">
+                            Created @SortIcon(_ownedSortField, "date")
+                        </th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var inv in _ownedInventories)
+                    {
+                        <tr @onclick="() => GoToInventory(inv.Id)"
+                            style="cursor:pointer">
+                            <td>@inv.Name</td>
+                            <td>@inv.Category</td>
+                            <td>@inv.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</td>
+                            <td @onclick:stopPropagation="true">
+                                <a href="/inventories/@inv.Id" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    Open
+                                </a>
+                                <button class="btn btn-sm btn-outline-danger ms-1"
+                                    @onclick="() => HandleDelete(inv.Id)">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <hr />
+
+        <!-- Inventories with Write Access -->
+        <h5 class="mb-2">Inventories I Can Edit</h5>
+
+        @if (_accessInventories == null)
+        {
+            <p>Loading...</p>
+        }
+        else if (_accessInventories.Count == 0)
+        {
+            <p class="text-muted">No inventories shared with you yet.</p>
+        }
+        else
+        {
+            <table class="table table-hover table-bordered">
+                <thead>
+                    <tr>
+                        <th @onclick='() => SortAccess("name")' 
+                            style="cursor:pointer">
+                            Name @SortIcon(_accessSortField, "name")
+                        </th>
+                        <th @onclick='() => SortAccess("owner")' 
+                            style="cursor:pointer">
+                            Owner @SortIcon(_accessSortField, "owner")
+                        </th>
+                        <th @onclick='() => SortAccess("category")' 
+                            style="cursor:pointer">
+                            Category @SortIcon(_accessSortField, "category")
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var inv in _accessInventories)
+                    {
+                        <tr @onclick="() => GoToInventory(inv.Id)"
+                            style="cursor:pointer">
+                            <td>@inv.Name</td>
+                            <td>@inv.Owner.Email</td>
+                            <td>@inv.Category</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>Please <a href="/account/login">log in</a> to view your profile.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private List<Inventory>? _ownedInventories;
+    private List<Inventory>? _accessInventories;
+    private string? _currentUserId;
+
+    private string _ownedSortField = "date";
+    private bool _ownedSortAsc = false;
+    private string _accessSortField = "name";
+    private bool _accessSortAsc = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider
+            .GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        _currentUserId = user.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (_currentUserId == null)
+        {
+            Navigation.NavigateTo("/account/login");
+            return;
+        }
+
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        var owned = await InventoryService
+            .GetOwnedByUserAsync(_currentUserId!);
+        var access = await InventoryService
+            .GetInventoriesWithWriteAccessAsync(_currentUserId!);
+
+        _ownedInventories = ApplySortOwned(owned);
+        _accessInventories = ApplySortAccess(access);
+    }
+
+    private void SortOwned(string field)
+    {
+        if (_ownedSortField == field)
+            _ownedSortAsc = !_ownedSortAsc;
+        else
+        {
+            _ownedSortField = field;
+            _ownedSortAsc = true;
+        }
+        _ownedInventories = ApplySortOwned(_ownedInventories!);
+    }
+
+    private void SortAccess(string field)
+    {
+        if (_accessSortField == field)
+            _accessSortAsc = !_accessSortAsc;
+        else
+        {
+            _accessSortField = field;
+            _accessSortAsc = true;
+        }
+        _accessInventories = ApplySortAccess(_accessInventories!);
+    }
+
+    private List<Inventory> ApplySortOwned(List<Inventory> list)
+    {
+        return _ownedSortField switch
+        {
+            "name" => _ownedSortAsc
+                ? list.OrderBy(i => i.Name).ToList()
+                : list.OrderByDescending(i => i.Name).ToList(),
+            "category" => _ownedSortAsc
+                ? list.OrderBy(i => i.Category).ToList()
+                : list.OrderByDescending(i => i.Category).ToList(),
+            _ => _ownedSortAsc
+                ? list.OrderBy(i => i.CreatedAt).ToList()
+                : list.OrderByDescending(i => i.CreatedAt).ToList()
+        };
+    }
+
+    private List<Inventory> ApplySortAccess(List<Inventory> list)
+    {
+        return _accessSortField switch
+        {
+            "owner" => _accessSortAsc
+                ? list.OrderBy(i => i.Owner.Email).ToList()
+                : list.OrderByDescending(i => i.Owner.Email).ToList(),
+            "category" => _accessSortAsc
+                ? list.OrderBy(i => i.Category).ToList()
+                : list.OrderByDescending(i => i.Category).ToList(),
+            _ => _accessSortAsc
+                ? list.OrderBy(i => i.Name).ToList()
+                : list.OrderByDescending(i => i.Name).ToList()
+        };
+    }
+
+    private string SortIcon(string currentField, string thisField)
+    {
+        if (currentField != thisField) return "↕";
+        return "↕";
+    }
+
+    private async Task HandleDelete(int inventoryId)
+    {
+        var authState = await AuthStateProvider
+            .GetAuthenticationStateAsync();
+        var isAdmin = authState.User.IsInRole("Admin");
+
+        var success = await InventoryService
+            .DeleteAsync(inventoryId, _currentUserId!, isAdmin);
+
+        if (success)
+            await LoadDataAsync();
+    }
+    private void GoToInventory(int id)
+    {
+        Navigation.NavigateTo($"/inventories/{id}");
+    }
+}
