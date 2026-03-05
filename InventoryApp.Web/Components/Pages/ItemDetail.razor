@@ -1,0 +1,212 @@
+﻿@page "/items/{Id:int}"
+@rendermode InteractiveServer
+@inject ItemService ItemService
+@inject InventoryService InventoryService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>@(_item?.Name ?? "Item")</PageTitle>
+
+@if (_item == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="mb-3">
+        <a href="/inventories/@_item.InventoryId" class="btn btn-secondary btn-sm">
+            ← Back to Inventory
+        </a>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>@_item.Name</h3>
+        @if (_hasWriteAccess)
+        {
+            <div>
+                @if (!_isEditing)
+                {
+                    <button class="btn btn-primary btn-sm"
+                            @onclick="() => _isEditing = true">
+                        Edit
+                    </button>
+                    <button class="btn btn-danger btn-sm ms-2"
+                            @onclick="HandleDelete">
+                        Delete
+                    </button>
+                }
+            </div>
+        }
+    </div>
+
+    @if (_isEditing)
+    {
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="mb-2">
+                    <label class="form-label">Name *</label>
+                    <input class="form-control" @bind="_editName" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Custom ID</label>
+                    <input class="form-control" @bind="_editCustomId" />
+                </div>
+                <button class="btn btn-success" @onclick="HandleSave">
+                    Save
+                </button>
+                <button class="btn btn-secondary ms-2"
+                        @onclick="CancelEdit">
+                    Cancel
+                </button>
+                @if (_saveError != null)
+                {
+                    <div class="alert alert-danger mt-2">@_saveError</div>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <table class="table table-bordered">
+            <tbody>
+                <tr>
+                    <th style="width:200px">Custom ID</th>
+                    <td>@_item.CustomId</td>
+                </tr>
+                <tr>
+                    <th>Name</th>
+                    <td>@_item.Name</td>
+                </tr>
+                <tr>
+                    <th>Created By</th>
+                    <td>@_item.CreatedBy.Email</td>
+                </tr>
+                <tr>
+                    <th>Created At</th>
+                    <td>@_item.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</td>
+                </tr>
+                <tr>
+                    <th>Likes</th>
+                    <td>
+                        @_item.Likes.Count
+                        @if (_currentUserId != null && !_hasLiked)
+                        {
+                            <button class="btn btn-sm btn-outline-primary ms-2"
+                                    @onclick="HandleLike">
+                                ♥ Like
+                            </button>
+                        }
+                        else if (_hasLiked)
+                        {
+                            <span class="ms-2 text-primary">♥ Liked</span>
+                        }
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Item? _item;
+    private bool _hasWriteAccess = false;
+    private bool _isEditing = false;
+    private bool _hasLiked = false;
+    private string? _currentUserId;
+    private string _editName = string.Empty;
+    private string _editCustomId = string.Empty;
+    private string? _saveError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadItemAsync();
+
+        var authState = await AuthStateProvider
+            .GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        _currentUserId = user.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (_currentUserId != null && _item != null)
+        {
+            var isAdmin = user.IsInRole("Admin");
+            var isOwner = _item.CreatedById == _currentUserId;
+
+            _hasWriteAccess = isAdmin || isOwner ||
+                await ItemService.HasWriteAccessAsync(
+                    _item.InventoryId, _currentUserId);
+
+            _hasLiked = _item.Likes
+                .Any(l => l.UserId == _currentUserId);
+        }
+    }
+
+    private async Task LoadItemAsync()
+    {
+        _item = await ItemService.GetByIdAsync(Id);
+        if (_item == null)
+            Navigation.NavigateTo("/inventories");
+    }
+
+    private void StartEdit()
+    {
+        _editName = _item!.Name;
+        _editCustomId = _item.CustomId;
+        _isEditing = true;
+    }
+
+    private void CancelEdit()
+    {
+        _isEditing = false;
+        _saveError = null;
+    }
+
+    private async Task HandleSave()
+    {
+        if (string.IsNullOrWhiteSpace(_editName))
+        {
+            _saveError = "Name is required.";
+            return;
+        }
+
+        _item!.Name = _editName.Trim();
+        _item.CustomId = _editCustomId.Trim();
+
+        var success = await ItemService.UpdateAsync(_item);
+        if (success)
+        {
+            _isEditing = false;
+            _saveError = null;
+            await LoadItemAsync();
+        }
+        else
+        {
+            _saveError = "Failed to save. Please try again.";
+        }
+    }
+
+    private async Task HandleDelete()
+    {
+        if (_currentUserId == null) return;
+
+        var authState = await AuthStateProvider
+            .GetAuthenticationStateAsync();
+        var isAdmin = authState.User.IsInRole("Admin");
+
+        var success = await ItemService
+            .DeleteAsync(Id, _currentUserId, isAdmin);
+
+        if (success)
+            Navigation.NavigateTo(
+                $"/inventories/{_item!.InventoryId}");
+    }
+
+    private async Task HandleLike()
+    {
+        // Like functionality - coming in Step 12
+    }
+}
