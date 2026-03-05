@@ -1,0 +1,183 @@
+﻿@rendermode InteractiveServer
+@inject AccessService AccessService
+@inject InventoryService InventoryService
+
+<div class="mb-3">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox"
+               @bind="_isPublicWrite"
+               @bind:after="HandlePublicWriteChanged" />
+        <label class="form-check-label">
+            Public — all authenticated users can add items
+        </label>
+    </div>
+</div>
+
+<hr />
+
+@if (!_isPublicWrite)
+{
+    <h6>Add User by Email or Username</h6>
+
+    <div class="mb-3 position-relative">
+        <input class="form-control" placeholder="Type to search..."
+               value="@_searchQuery"
+               @oninput="HandleSearchInput" />
+
+        @if (_searchResults.Count > 0)
+        {
+            <div class="list-group position-absolute w-100"
+                 style="z-index:100">
+                @foreach (var user in _searchResults)
+                {
+                    <button class="list-group-item list-group-item-action"
+                            @onclick="() => HandleAddUser(user.Id)">
+                        @user.Email
+                    </button>
+                }
+            </div>
+        }
+    </div>
+
+    <h6>Users with Write Access</h6>
+
+    @if (_accessList.Count == 0)
+    {
+        <p class="text-muted">No users added yet.</p>
+    }
+    else
+    {
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th @onclick='() => ToggleSort("email")'
+                        style="cursor:pointer">
+                        Email @SortIcon("email")
+                    </th>
+                    <th @onclick='() => ToggleSort("username")'
+                        style="cursor:pointer">
+                        Username @SortIcon("username")
+                    </th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var access in _accessList)
+                {
+                    <tr>
+                        <td>@access.User.Email</td>
+                        <td>@access.User.UserName</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-danger"
+                                    @onclick="() => HandleRemoveUser(access.Id)">
+                                Remove
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@if (_message != null)
+{
+    <div class="alert alert-info mt-2">@_message</div>
+}
+
+@code {
+    [Parameter]
+    public int InventoryId { get; set; }
+
+    private List<InventoryAccess> _accessList = new();
+    private List<ApplicationUser> _searchResults = new();
+    private string _searchQuery = string.Empty;
+    private bool _isPublicWrite = false;
+    private string _sortField = "email";
+    private bool _sortAsc = true;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var inventory = await InventoryService.GetByIdAsync(InventoryId);
+        if (inventory != null)
+            _isPublicWrite = inventory.IsPublicWrite;
+
+        await LoadAccessListAsync();
+    }
+
+    private async Task LoadAccessListAsync()
+    {
+        var list = await AccessService.GetAccessListAsync(InventoryId);
+        _accessList = ApplySort(list);
+    }
+
+    private async Task HandlePublicWriteChanged()
+    {
+        await AccessService.UpdatePublicWriteAsync(InventoryId, _isPublicWrite);
+        _message = _isPublicWrite
+            ? "Inventory is now public."
+            : "Inventory is now private.";
+    }
+
+    private async Task HandleSearchInput(ChangeEventArgs e)
+    {
+        _searchQuery = e.Value?.ToString() ?? string.Empty;
+
+        if (_searchQuery.Length < 2)
+        {
+            _searchResults.Clear();
+            return;
+        }
+
+        _searchResults = await AccessService
+            .SearchUsersAsync(_searchQuery, InventoryId);
+    }
+
+    private async Task HandleAddUser(string userId)
+    {
+        await AccessService.AddAccessAsync(InventoryId, userId);
+        _searchQuery = string.Empty;
+        _searchResults.Clear();
+        _message = "User added successfully.";
+        await LoadAccessListAsync();
+    }
+
+    private async Task HandleRemoveUser(int accessId)
+    {
+        await AccessService.RemoveAccessAsync(accessId);
+        _message = "User removed.";
+        await LoadAccessListAsync();
+    }
+
+    private void ToggleSort(string field)
+    {
+        if (_sortField == field)
+            _sortAsc = !_sortAsc;
+        else
+        {
+            _sortField = field;
+            _sortAsc = true;
+        }
+        _accessList = ApplySort(_accessList);
+    }
+
+    private List<InventoryAccess> ApplySort(List<InventoryAccess> list)
+    {
+        return _sortField switch
+        {
+            "username" => _sortAsc
+                ? list.OrderBy(a => a.User.UserName).ToList()
+                : list.OrderByDescending(a => a.User.UserName).ToList(),
+            _ => _sortAsc
+                ? list.OrderBy(a => a.User.Email).ToList()
+                : list.OrderByDescending(a => a.User.Email).ToList()
+        };
+    }
+
+    private string SortIcon(string field)
+    {
+        if (_sortField != field) return "↕";
+        return _sortAsc ? "↑" : "↓";
+    }
+}

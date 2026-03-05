@@ -15,6 +15,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddScoped<InventoryApp.Data.Services.InventoryService>();
 builder.Services.AddScoped<InventoryApp.Data.Services.ItemService>();
 builder.Services.AddScoped<InventoryApp.Data.Services.AdminService>();
+builder.Services.AddScoped<InventoryApp.Data.Services.AccessService>();
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
