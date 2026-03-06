@@ -1,0 +1,151 @@
+﻿@rendermode InteractiveServer
+@inject InventoryService InventoryService
+
+@if (_inventory == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-6">
+            <div class="mb-3">
+                <label class="form-label">Name *</label>
+                <input class="form-control"
+                       value="@_name"
+                       @oninput="e => { _name = e.Value?.ToString() ?? string.Empty; MarkDirty(); }" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Description</label>
+                <textarea class="form-control" rows="4"
+                          @oninput="e => { _description = e.Value?.ToString() ?? string.Empty; MarkDirty(); }">@_description</textarea>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Category</label>
+                <select class="form-select"
+                        value="@_category"
+                        @onchange="e => { _category = Enum.Parse<InventoryCategory>(e.Value?.ToString() ?? string.Empty); MarkDirty(); }">
+                    @foreach (var cat in Enum.GetValues<InventoryCategory>())
+                    {
+                        <option value="@cat">@cat</option>
+                    }
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox"
+                           checked="@_isPublicWrite"
+                           @onchange="e => { _isPublicWrite = (bool)(e.Value ?? false); MarkDirty(); }" />
+                    <label class="form-check-label">
+                        Public — all authenticated users can add items
+                    </label>
+                </div>
+            </div>
+
+            @if (_statusMessage != null)
+            {
+                <div class="alert @(_saveError ? "alert-danger" : "alert-success")">
+                    @_statusMessage
+                </div>
+            }
+
+            @if (_isDirty)
+            {
+                <small class="text-muted">Unsaved changes...</small>
+            }
+        </div>
+    </div>
+}
+
+@implements IAsyncDisposable
+
+@code {
+    [Parameter]
+    public int InventoryId { get; set; }
+
+    private InventoryApp.Data.Models.Inventory? _inventory;
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+    private InventoryCategory _category = InventoryCategory.Other;
+    private bool _isPublicWrite = false;
+    private bool _isDirty = false;
+    private bool _saveError = false;
+    private string? _statusMessage;
+
+    private System.Timers.Timer? _autoSaveTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _inventory = await InventoryService.GetByIdAsync(InventoryId);
+
+        if (_inventory != null)
+        {
+            _name = _inventory.Name;
+            _description = _inventory.Description;
+            _category = _inventory.Category;
+            _isPublicWrite = _inventory.IsPublicWrite;
+        }
+
+        _autoSaveTimer = new System.Timers.Timer(8000);
+        _autoSaveTimer.Elapsed += async (s, e) => await AutoSaveAsync();
+        _autoSaveTimer.AutoReset = true;
+        _autoSaveTimer.Start();
+    }
+
+    private void MarkDirty()
+    {
+        _isDirty = true;
+    }
+
+    private async Task AutoSaveAsync()
+    {
+        if (!_isDirty) return;
+
+        await InvokeAsync(async () =>
+        {
+            await SaveAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_inventory == null) return;
+        if (string.IsNullOrWhiteSpace(_name)) return;
+
+        _inventory.Name = _name.Trim();
+        _inventory.Description = _description.Trim();
+        _inventory.Category = _category;
+        _inventory.IsPublicWrite = _isPublicWrite;
+
+        var success = await InventoryService.UpdateAsync(_inventory);
+
+        if (success)
+        {
+            _inventory.Version++;
+            _isDirty = false;
+            _saveError = false;
+            _statusMessage = "Saved at " + DateTime.Now.ToString("HH:mm:ss");
+        }
+        else
+        {
+            _saveError = true;
+            _statusMessage = "Save failed — someone else modified this inventory. Reload to get latest version.";
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_autoSaveTimer != null)
+        {
+            _autoSaveTimer.Stop();
+            _autoSaveTimer.Dispose();
+        }
+
+        if (_isDirty)
+            await SaveAsync();
+    }
+}
