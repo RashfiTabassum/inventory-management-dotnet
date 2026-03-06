@@ -1,0 +1,257 @@
+﻿@rendermode InteractiveServer
+@inject InventoryService InventoryService
+@inject InventoryApp.Data.CustomId.CustomIdGenerator CustomIdGenerator
+@using InventoryApp.Data.CustomId
+@using System.Text.Json
+
+@if (_loaded)
+{
+    <div class="row">
+        <div class="col-md-7">
+            <h6>ID Format Parts</h6>
+            <p class="text-muted">
+                Build your custom ID by adding parts below.
+                Parts are combined left to right.
+            </p>
+
+            @if (_parts.Count == 0)
+            {
+                <p class="text-muted fst-italic">
+                    No parts defined — items will have empty IDs.
+                </p>
+            }
+            else
+            {
+                <table class="table table-bordered table-sm">
+                    <thead>
+                        <tr>
+                            <th>Order</th>
+                            <th>Type</th>
+                            <th>Config</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int i = 0; i < _parts.Count; i++)
+                        {
+                            var index = i;
+                            var part = _parts[i];
+                            <tr>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            @onclick="() => MoveUp(index)"
+                                            disabled="@(index == 0)">
+                                        ↑
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary ms-1"
+                                            @onclick="() => MoveDown(index)"
+                                            disabled="@(index == _parts.Count - 1)">
+                                        ↓
+                                    </button>
+                                </td>
+                                <td>@GetPartLabel(part.Type)</td>
+                                <td>
+                                    @if (part.Type == CustomIdPartType.FixedText)
+                                    {
+                                        <input class="form-control form-control-sm"
+                                               style="width:150px"
+                                               value="@part.FixedText"
+                                               @oninput="e => { part.FixedText = e.Value?.ToString(); UpdatePreview(); }" />
+                                    }
+                                    else if (part.Type == CustomIdPartType.DateTime)
+                                    {
+                                        <input class="form-control form-control-sm"
+                                               style="width:150px"
+                                               value="@(part.DateFormat ?? string.Empty)"
+                                               @oninput="e => { part.DateFormat = e.Value?.ToString() ?? string.Empty; UpdatePreview(); }" />
+                                    }
+                                    else if (part.Type != CustomIdPartType.Guid
+                                    && part.Type != CustomIdPartType.Sequence)
+                                    {
+                                        <div class="form-check">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   checked="@part.LeadingZeros"
+                                                   @onchange="e => { part.LeadingZeros = (bool)(e.Value ?? true); UpdatePreview(); }" />
+                                            <label class="form-check-label">
+                                                Leading zeros
+                                            </label>
+                                        </div>
+                                    }
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => RemovePart(index)">
+                                        Remove
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <h6 class="mt-3">Add Part</h6>
+            <div class="d-flex gap-2 align-items-center mb-3">
+                <select class="form-select" style="width:220px"
+                        @bind="_selectedPartType">
+                    @foreach (var type in Enum.GetValues<CustomIdPartType>())
+                    {
+                        <option value="@type">@GetPartLabel(type)</option>
+                    }
+                </select>
+                <button class="btn btn-primary btn-sm"
+                        @onclick="AddPart"
+                        disabled="@(_parts.Count >= 10)">
+                    + Add
+                </button>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Preview:</label>
+                <span class="ms-2 font-monospace bg-light p-2 border rounded">
+                    @(_preview.Length > 0 ? _preview : "(empty)")
+                </span>
+            </div>
+
+            <button class="btn btn-success" @onclick="SaveFormatAsync">
+                Save Format
+            </button>
+
+            @if (_message != null)
+            {
+                <div class="alert alert-info mt-3">@_message</div>
+            }
+        </div>
+
+        <div class="col-md-4 offset-md-1">
+            <div class="card">
+                <div class="card-header">Part Types Help</div>
+                <div class="card-body">
+                    <dl>
+                        <dt>Fixed Text</dt>
+                        <dd>Any text you type, e.g. "EQ-"</dd>
+                        <dt>6-digit Random</dt>
+                        <dd>e.g. 482910</dd>
+                        <dt>9-digit Random</dt>
+                        <dd>e.g. 482910234</dd>
+                        <dt>20-bit Random</dt>
+                        <dd>e.g. 0524288</dd>
+                        <dt>32-bit Random</dt>
+                        <dd>e.g. 1234567890</dd>
+                        <dt>GUID</dt>
+                        <dd>e.g. a3f2c1d4-...</dd>
+                        <dt>Date/Time</dt>
+                        <dd>Format: yyyyMMdd, yyyy-MM-dd, etc.</dd>
+                        <dt>Sequence</dt>
+                        <dd>Auto-incrementing number</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int InventoryId { get; set; }
+
+    private List<CustomIdPart> _parts = new();
+    private CustomIdPartType _selectedPartType = CustomIdPartType.FixedText;
+    private string _preview = string.Empty;
+    private string? _message;
+    private bool _loaded = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var inventory = await InventoryService.GetByIdAsync(InventoryId);
+
+        if (inventory != null &&
+            !string.IsNullOrEmpty(inventory.CustomIdFormat))
+        {
+            try
+            {
+                _parts = JsonSerializer.Deserialize<List<CustomIdPart>>(
+                    inventory.CustomIdFormat)
+                    ?? new List<CustomIdPart>();
+            }
+            catch
+            {
+                _parts = new List<CustomIdPart>();
+            }
+        }
+
+        _loaded = true;
+        UpdatePreview();
+    }
+
+    private void AddPart()
+    {
+        if (_parts.Count >= 10) return;
+
+        _parts.Add(new CustomIdPart
+            {
+                Type = _selectedPartType,
+                FixedText = _selectedPartType == CustomIdPartType.FixedText
+            ? "TEXT" : null,
+                DateFormat = _selectedPartType == CustomIdPartType.DateTime
+        ? "yyyyMMdd" : null
+            });
+
+        UpdatePreview();
+    }
+
+    private void RemovePart(int index)
+    {
+        _parts.RemoveAt(index);
+        UpdatePreview();
+    }
+
+    private void MoveUp(int index)
+    {
+        if (index <= 0) return;
+        (_parts[index], _parts[index - 1]) =
+            (_parts[index - 1], _parts[index]);
+        UpdatePreview();
+    }
+
+    private void MoveDown(int index)
+    {
+        if (index >= _parts.Count - 1) return;
+        (_parts[index], _parts[index + 1]) =
+            (_parts[index + 1], _parts[index]);
+        UpdatePreview();
+    }
+
+    private void UpdatePreview()
+    {
+        _preview = CustomIdGenerator.GeneratePreview(_parts);
+    }
+
+    private async Task SaveFormatAsync()
+    {
+        var inventory = await InventoryService.GetByIdAsync(InventoryId);
+        if (inventory == null) return;
+
+        inventory.CustomIdFormat = JsonSerializer.Serialize(_parts);
+        await InventoryService.UpdateAsync(inventory);
+
+        _message = "Format saved. New items will use this format.";
+    }
+
+    private string GetPartLabel(CustomIdPartType type)
+    {
+        return type switch
+        {
+            CustomIdPartType.FixedText => "Fixed Text",
+            CustomIdPartType.Random6Digit => "6-digit Random",
+            CustomIdPartType.Random9Digit => "9-digit Random",
+            CustomIdPartType.Random20Bit => "20-bit Random",
+            CustomIdPartType.Random32Bit => "32-bit Random",
+            CustomIdPartType.Guid => "GUID",
+            CustomIdPartType.DateTime => "Date/Time",
+            CustomIdPartType.Sequence => "Sequence",
+            _ => type.ToString()
+        };
+    }
+}

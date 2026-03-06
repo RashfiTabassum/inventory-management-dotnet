@@ -40,5 +40,7 @@ namespace InventoryApp.Data.Models
         public ICollection<Comment> Comments { get; set; } = new List<Comment>();
         public InventoryCategory Category { get; set; } = InventoryCategory.Other;
         public int Version { get; set; } = 1;
+
+        public string CustomIdFormat { get; set; } = string.Empty;
     }
 }

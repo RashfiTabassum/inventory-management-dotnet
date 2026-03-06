@@ -2,15 +2,18 @@
 using InventoryApp.Data.Models;
 using Microsoft.EntityFrameworkCore;
 
+
 namespace InventoryApp.Data.Services
 {
     public class ItemService
     {
         private readonly ApplicationDbContext _db;
+        private readonly InventoryApp.Data.CustomId.CustomIdGenerator _idGenerator;
 
-        public ItemService(ApplicationDbContext db)
+        public ItemService( ApplicationDbContext db, InventoryApp.Data.CustomId.CustomIdGenerator idGenerator)
         {
             _db = db;
+            _idGenerator = idGenerator;
         }
 
         public async Task<List<Item>> GetByInventoryAsync(int inventoryId)
@@ -49,6 +52,7 @@ namespace InventoryApp.Data.Services
 
         public async Task<Item> CreateAsync(Item item)
         {
+            item.CustomId = await _idGenerator.GenerateAsync(item.InventoryId);
             _db.Items.Add(item);
             await _db.SaveChangesAsync();
             return item;
