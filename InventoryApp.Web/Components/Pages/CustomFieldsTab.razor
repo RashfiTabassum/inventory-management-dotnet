@@ -1,0 +1,226 @@
+﻿@rendermode InteractiveServer
+@inject CustomFieldService CustomFieldService
+
+@if (_fields == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="mb-3">
+        <button class="btn btn-primary btn-sm"
+                @onclick="() => _showAddForm = true">
+            + Add Field
+        </button>
+    </div>
+
+    @if (_showAddForm)
+    {
+        <div class="card mb-3">
+            <div class="card-body">
+                <h6>New Field</h6>
+
+                <div class="mb-2">
+                    <label class="form-label">Title *</label>
+                    <input class="form-control" @bind="_newTitle" />
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label">Description (shown as tooltip)</label>
+                    <input class="form-control" @bind="_newDescription" />
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label">Field Type</label>
+                    <select class="form-select" @bind="_newFieldType">
+                        @foreach (var type in Enum.GetValues<CustomFieldType>())
+                        {
+                            <option value="@type">@GetFieldTypeLabel(type)</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="mb-2">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox"
+                               @bind="_newShowInTable" />
+                        <label class="form-check-label">
+                            Show in items table
+                        </label>
+                    </div>
+                </div>
+
+                @if (_addError != null)
+                {
+                    <div class="alert alert-danger">@_addError</div>
+                }
+
+                <button class="btn btn-success btn-sm"
+                        @onclick="HandleAddField">
+                    Save Field
+                </button>
+                <button class="btn btn-secondary btn-sm ms-2"
+                        @onclick="() => { _showAddForm = false; _addError = null; }">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (_fields.Count == 0)
+    {
+        <p class="text-muted">No custom fields defined yet.</p>
+    }
+    else
+    {
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Order</th>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                    <th>Show in Table</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var field in _fields)
+                {
+                    <tr>
+                        <td>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    @onclick="() => HandleMoveUp(field.Id)">
+                                ↑
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary ms-1"
+                                    @onclick="() => HandleMoveDown(field.Id)">
+                                ↓
+                            </button>
+                        </td>
+                        <td>@field.Title</td>
+                        <td>@GetFieldTypeLabel(field.FieldType)</td>
+                        <td>@field.Description</td>
+                        <td>
+                            @if (field.ShowInTable)
+                            {
+                                <span class="badge bg-success">Yes</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">No</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-danger"
+                                    @onclick="() => HandleDelete(field.Id)">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (_message != null)
+    {
+        <div class="alert alert-info mt-2">@_message</div>
+    }
+}
+
+@code {
+    [Parameter]
+    public int InventoryId { get; set; }
+
+    private List<CustomField>? _fields;
+    private bool _showAddForm = false;
+    private string _newTitle = string.Empty;
+    private string _newDescription = string.Empty;
+    private CustomFieldType _newFieldType = CustomFieldType.SingleLine;
+    private bool _newShowInTable = true;
+    private string? _addError;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFieldsAsync();
+    }
+
+    private async Task LoadFieldsAsync()
+    {
+        _fields = await CustomFieldService.GetByInventoryAsync(InventoryId);
+    }
+
+    private async Task HandleAddField()
+    {
+        if (string.IsNullOrWhiteSpace(_newTitle))
+        {
+            _addError = "Title is required.";
+            return;
+        }
+
+        var count = await CustomFieldService
+            .GetFieldCountByTypeAsync(InventoryId, _newFieldType);
+
+        if (count >= 3)
+        {
+            _addError = $"Maximum 3 fields of type " +
+                $"{GetFieldTypeLabel(_newFieldType)} allowed.";
+            return;
+        }
+
+        var field = new CustomField
+            {
+                Title = _newTitle.Trim(),
+                Description = _newDescription.Trim(),
+                FieldType = _newFieldType,
+                ShowInTable = _newShowInTable,
+                InventoryId = InventoryId
+            };
+
+        await CustomFieldService.CreateAsync(field);
+
+        _newTitle = string.Empty;
+        _newDescription = string.Empty;
+        _newFieldType = CustomFieldType.SingleLine;
+        _newShowInTable = true;
+        _showAddForm = false;
+        _addError = null;
+        _message = "Field added successfully.";
+
+        await LoadFieldsAsync();
+    }
+
+    private async Task HandleDelete(int fieldId)
+    {
+        await CustomFieldService.DeleteAsync(fieldId);
+        _message = "Field deleted.";
+        await LoadFieldsAsync();
+    }
+
+    private async Task HandleMoveUp(int fieldId)
+    {
+        await CustomFieldService.MoveUpAsync(fieldId);
+        await LoadFieldsAsync();
+    }
+
+    private async Task HandleMoveDown(int fieldId)
+    {
+        await CustomFieldService.MoveDownAsync(fieldId);
+        await LoadFieldsAsync();
+    }
+
+    private string GetFieldTypeLabel(CustomFieldType type)
+    {
+        return type switch
+        {
+            CustomFieldType.SingleLine => "Single Line Text",
+            CustomFieldType.MultiLine => "Multi Line Text",
+            CustomFieldType.Numeric => "Number",
+            CustomFieldType.DocumentLink => "Document / Image Link",
+            CustomFieldType.Boolean => "Checkbox (Yes/No)",
+            _ => type.ToString()
+        };
+    }
+}

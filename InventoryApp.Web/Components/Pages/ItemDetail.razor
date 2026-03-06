@@ -1,6 +1,7 @@
 ﻿@page "/items/{Id:int}"
 @rendermode InteractiveServer
 @inject ItemService ItemService
+@inject CustomFieldService CustomFieldService
 @inject InventoryService InventoryService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
@@ -27,7 +28,7 @@ else
                 @if (!_isEditing)
                 {
                     <button class="btn btn-primary btn-sm"
-                            @onclick="() => _isEditing = true">
+                            @onclick="StartEdit">
                         Edit
                     </button>
                     <button class="btn btn-danger btn-sm ms-2"
@@ -51,6 +52,55 @@ else
                     <label class="form-label">Custom ID</label>
                     <input class="form-control" @bind="_editCustomId" />
                 </div>
+
+                @foreach (var field in _customFields)
+                {
+                    <div class="mb-2">
+                        <label class="form-label" title="@field.Description">
+                            @field.Title
+                            @if (!string.IsNullOrEmpty(field.Description))
+                            {
+                                <span class="text-muted ms-1"
+                                      title="@field.Description">ⓘ</span>
+                            }
+                        </label>
+
+                        @if (field.FieldType == CustomFieldType.SingleLine)
+                        {
+                            <input class="form-control"
+                                   value="@GetFieldValue(field.Id)"
+                                   @oninput="e => SetFieldValue(field.Id, e.Value?.ToString() ?? string.Empty)" />
+                        }
+                        else if (field.FieldType == CustomFieldType.MultiLine)
+                        {
+                            <textarea class="form-control" rows="3"
+                                      @oninput="e => SetFieldValue(field.Id, e.Value?.ToString() ?? string.Empty)">@GetFieldValue(field.Id)</textarea>
+                        }
+                        else if (field.FieldType == CustomFieldType.Numeric)
+                        {
+                            <input type="number" class="form-control"
+                                   value="@GetFieldValue(field.Id)"
+                                   @oninput="e => SetFieldValue(field.Id, e.Value?.ToString() ?? string.Empty)" />
+                        }
+                        else if (field.FieldType == CustomFieldType.DocumentLink)
+                        {
+                            <input type="url" class="form-control"
+                                   placeholder="https://..."
+                                   value="@GetFieldValue(field.Id)"
+                                   @oninput="e => SetFieldValue(field.Id, e.Value?.ToString() ?? string.Empty)" />
+                        }
+                        else if (field.FieldType == CustomFieldType.Boolean)
+                        {
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       checked="@(GetFieldValue(field.Id) == "true")"
+                                       @onchange="e => SetFieldValue(field.Id, (e.Value?.ToString() ?? string.Empty).ToLower())" />
+                                <label class="form-check-label">@field.Title</label>
+                            </div>
+                        }
+                    </div>
+                }
+
                 <button class="btn btn-success" @onclick="HandleSave">
                     Save
                 </button>
@@ -85,6 +135,32 @@ else
                     <th>Created At</th>
                     <td>@_item.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</td>
                 </tr>
+
+                @foreach (var field in _customFields)
+                {
+                    <tr>
+                        <th>@field.Title</th>
+                        <td>
+                            @if (field.FieldType == CustomFieldType.Boolean)
+                            {
+                                @(GetFieldValue(field.Id) == "true" ? "✓ Yes" : "✗ No")
+                            }
+                            else if (field.FieldType == CustomFieldType.DocumentLink)
+                            {
+                                var url = GetFieldValue(field.Id);
+                                @if (!string.IsNullOrEmpty(url))
+                                {
+                                    <a href="@url" target="_blank">@url</a>
+                                }
+                            }
+                            else
+                            {
+                                @GetFieldValue(field.Id)
+                            }
+                        </td>
+                    </tr>
+                }
+
                 <tr>
                     <th>Likes</th>
                     <td>
@@ -112,6 +188,9 @@ else
     public int Id { get; set; }
 
     private Item? _item;
+    private List<CustomField> _customFields = new();
+    private Dictionary<int, string> _fieldValues = new();
+    private Dictionary<int, string> _editFieldValues = new();
     private bool _hasWriteAccess = false;
     private bool _isEditing = false;
     private bool _hasLiked = false;
@@ -149,13 +228,34 @@ else
     {
         _item = await ItemService.GetByIdAsync(Id);
         if (_item == null)
+        {
             Navigation.NavigateTo("/inventories");
+            return;
+        }
+
+        _customFields = await CustomFieldService
+            .GetByInventoryAsync(_item.InventoryId);
+
+        _fieldValues = await CustomFieldService
+            .GetFieldValuesAsync(Id);
+    }
+
+    private string GetFieldValue(int fieldId)
+    {
+        return _fieldValues.TryGetValue(fieldId, out var val)
+            ? val : string.Empty;
+    }
+
+    private void SetFieldValue(int fieldId, string value)
+    {
+        _editFieldValues[fieldId] = value;
     }
 
     private void StartEdit()
     {
         _editName = _item!.Name;
         _editCustomId = _item.CustomId;
+        _editFieldValues = new Dictionary<int, string>(_fieldValues);
         _isEditing = true;
     }
 
@@ -163,6 +263,7 @@ else
     {
         _isEditing = false;
         _saveError = null;
+        _editFieldValues.Clear();
     }
 
     private async Task HandleSave()
@@ -177,16 +278,21 @@ else
         _item.CustomId = _editCustomId.Trim();
 
         var success = await ItemService.UpdateAsync(_item);
-        if (success)
-        {
-            _isEditing = false;
-            _saveError = null;
-            await LoadItemAsync();
-        }
-        else
+        if (!success)
         {
             _saveError = "Failed to save. Please try again.";
+            return;
         }
+
+        foreach (var kv in _editFieldValues)
+        {
+            await CustomFieldService.SaveFieldValueAsync(
+                Id, kv.Key, kv.Value);
+        }
+
+        _isEditing = false;
+        _saveError = null;
+        await LoadItemAsync();
     }
 
     private async Task HandleDelete()
@@ -207,6 +313,6 @@ else
 
     private async Task HandleLike()
     {
-        // Like functionality - coming in Step 12
+        // Coming in Step 12
     }
 }
