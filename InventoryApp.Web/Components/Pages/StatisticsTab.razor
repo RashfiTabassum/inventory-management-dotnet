@@ -1,0 +1,192 @@
+﻿@rendermode InteractiveServer
+@inject InventoryApp.Data.Services.InventoryService InventoryService
+@inject IServiceProvider ServiceProvider
+@using InventoryApp.Data.Context
+@using Microsoft.EntityFrameworkCore
+
+
+@if (!_loaded)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card text-center mb-3">
+                <div class="card-body">
+                    <h1 class="display-4">@_totalItems</h1>
+                    <p class="text-muted">Total Items</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center mb-3">
+                <div class="card-body">
+                    <h1 class="display-4">@_totalLikes</h1>
+                    <p class="text-muted">Total Likes</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-center mb-3">
+                <div class="card-body">
+                    <h1 class="display-4">@_totalComments</h1>
+                    <p class="text-muted">Total Comments</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_numericStats.Count > 0)
+    {
+        <h5 class="mt-3">Numeric Field Statistics</h5>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Min</th>
+                    <th>Max</th>
+                    <th>Average</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var stat in _numericStats)
+                {
+                    <tr>
+                        <td>@stat.FieldTitle</td>
+                        <td>@stat.Min.ToString("F2")</td>
+                        <td>@stat.Max.ToString("F2")</td>
+                        <td>@stat.Average.ToString("F2")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (_topTextValues.Count > 0)
+    {
+        <h5 class="mt-3">Most Common Text Values</h5>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Most Common Value</th>
+                    <th>Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var stat in _topTextValues)
+                {
+                    <tr>
+                        <td>@stat.FieldTitle</td>
+                        <td>@stat.TopValue</td>
+                        <td>@stat.Count</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    [Parameter]
+    public int InventoryId { get; set; }
+
+    private bool _loaded = false;
+    private int _totalItems = 0;
+    private int _totalLikes = 0;
+    private int _totalComments = 0;
+
+    private List<NumericFieldStat> _numericStats = new();
+    private List<TextFieldStat> _topTextValues = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var scope = ServiceProvider.CreateScope();
+        var Db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+        _totalItems = await Db.Items
+            .CountAsync(i => i.InventoryId == InventoryId);
+
+        _totalLikes = await Db.Likes
+            .CountAsync(l => l.Item.InventoryId == InventoryId);
+
+        _totalComments = await Db.Comments
+            .CountAsync(c => c.InventoryId == InventoryId);
+
+        var numericFields = await Db.CustomFields
+            .Where(f => f.InventoryId == InventoryId
+                && f.FieldType == CustomFieldType.Numeric)
+            .ToListAsync();
+
+        foreach (var field in numericFields)
+        {
+            var values = await Db.CustomFieldValues
+                .Where(v => v.CustomFieldId == field.Id
+                    && v.Value != string.Empty)
+                .Select(v => v.Value)
+                .ToListAsync();
+
+            var numericValues = values
+                .Select(v => double.TryParse(v, out var d) ? d : (double?)null)
+                .Where(v => v.HasValue)
+                .Select(v => v!.Value)
+                .ToList();
+
+            if (numericValues.Count > 0)
+            {
+                _numericStats.Add(new NumericFieldStat
+                    {
+                        FieldTitle = field.Title,
+                        Min = numericValues.Min(),
+                        Max = numericValues.Max(),
+                        Average = numericValues.Average()
+                    });
+            }
+        }
+
+        var textFields = await Db.CustomFields
+            .Where(f => f.InventoryId == InventoryId
+                && f.FieldType == CustomFieldType.SingleLine)
+            .ToListAsync();
+
+        foreach (var field in textFields)
+        {
+            var topValue = await Db.CustomFieldValues
+                .Where(v => v.CustomFieldId == field.Id
+                    && v.Value != string.Empty)
+                .GroupBy(v => v.Value)
+                .OrderByDescending(g => g.Count())
+                .Select(g => new { Value = g.Key, Count = g.Count() })
+                .FirstOrDefaultAsync();
+
+            if (topValue != null)
+            {
+                _topTextValues.Add(new TextFieldStat
+                    {
+                        FieldTitle = field.Title,
+                        TopValue = topValue.Value,
+                        Count = topValue.Count
+                    });
+            }
+        }
+
+        _loaded = true;
+    }
+
+    private class NumericFieldStat
+    {
+        public string FieldTitle { get; set; } = string.Empty;
+        public double Min { get; set; }
+        public double Max { get; set; }
+        public double Average { get; set; }
+    }
+
+    private class TextFieldStat
+    {
+        public string FieldTitle { get; set; } = string.Empty;
+        public string TopValue { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+}
