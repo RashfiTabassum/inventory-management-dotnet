@@ -101,5 +101,27 @@ namespace InventoryApp.Data.Services
             return inventory.AccessList
                 .Any(a => a.UserId == userId);
         }
+        public async Task<bool> ToggleLikeAsync(int itemId, string userId)
+        {
+            var existing = await _db.Likes
+                .FirstOrDefaultAsync(l =>
+                    l.ItemId == itemId && l.UserId == userId);
+
+            if (existing != null)
+            {
+                _db.Likes.Remove(existing);
+                await _db.SaveChangesAsync();
+                return false; // unliked
+            }
+
+            _db.Likes.Add(new Like
+            {
+                ItemId = itemId,
+                UserId = userId
+            });
+
+            await _db.SaveChangesAsync();
+            return true; // liked
+        }
     }
 }

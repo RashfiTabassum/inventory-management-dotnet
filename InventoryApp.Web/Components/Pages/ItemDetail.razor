@@ -313,6 +313,12 @@ else
 
     private async Task HandleLike()
     {
-        // Coming in Step 12
+        if (_currentUserId == null) return;
+
+        var liked = await ItemService
+            .ToggleLikeAsync(Id, _currentUserId);
+
+        _hasLiked = liked;
+        await LoadItemAsync();
     }
 }
