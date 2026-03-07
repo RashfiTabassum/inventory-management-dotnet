@@ -1,0 +1,120 @@
+﻿@rendermode InteractiveServer
+@inject CommentService CommentService
+@inject AuthenticationStateProvider AuthStateProvider
+@implements IAsyncDisposable
+
+@if (_comments == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="mb-3" style="max-height:500px; overflow-y:auto;"
+         id="comments-container">
+        @if (_comments.Count == 0)
+        {
+            <p class="text-muted">No comments yet. Be the first!</p>
+        }
+        else
+        {
+            @foreach (var comment in _comments)
+            {
+                <div class="card mb-2">
+                    <div class="card-body py-2">
+                        <div class="d-flex justify-content-between">
+                            <strong>@comment.Author.Email</strong>
+                            <small class="text-muted">
+                                @comment.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
+                            </small>
+                        </div>
+                        <p class="mb-0 mt-1">@comment.Content</p>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    <AuthorizeView>
+        <Authorized>
+            <div class="d-flex gap-2">
+                <textarea class="form-control" rows="2"
+                          placeholder="Write a comment..."
+                          @bind="_newComment"></textarea>
+                <button class="btn btn-primary"
+                        style="white-space:nowrap"
+                        @onclick="HandleAddComment"
+                        disabled="@string.IsNullOrWhiteSpace(_newComment)">
+                    Post
+                </button>
+            </div>
+        </Authorized>
+        <NotAuthorized>
+            <p class="text-muted">
+                <a href="/account/login">Log in</a> to join the discussion.
+            </p>
+        </NotAuthorized>
+    </AuthorizeView>
+}
+
+@code {
+    [Parameter]
+    public int InventoryId { get; set; }
+
+    private List<Comment>? _comments;
+    private string _newComment = string.Empty;
+    private string? _currentUserId;
+    private System.Timers.Timer? _pollTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider
+            .GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        _currentUserId = user.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        await LoadCommentsAsync();
+
+        _pollTimer = new System.Timers.Timer(3000);
+        _pollTimer.Elapsed += async (s, e) => await PollCommentsAsync();
+        _pollTimer.AutoReset = true;
+        _pollTimer.Start();
+    }
+
+    private async Task LoadCommentsAsync()
+    {
+        _comments = await CommentService
+            .GetByInventoryAsync(InventoryId);
+    }
+
+    private async Task PollCommentsAsync()
+    {
+        await InvokeAsync(async () =>
+        {
+            await LoadCommentsAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task HandleAddComment()
+    {
+        if (string.IsNullOrWhiteSpace(_newComment)) return;
+        if (_currentUserId == null) return;
+
+        await CommentService.AddCommentAsync(
+            InventoryId, _currentUserId, _newComment.Trim());
+
+        _newComment = string.Empty;
+        await LoadCommentsAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_pollTimer != null)
+        {
+            _pollTimer.Stop();
+            _pollTimer.Dispose();
+        }
+    }
+}
