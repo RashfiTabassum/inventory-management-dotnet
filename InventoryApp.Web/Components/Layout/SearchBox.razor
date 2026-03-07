@@ -1,0 +1,31 @@
+﻿@rendermode InteractiveServer
+@inject NavigationManager Navigation
+
+<div class="d-flex align-items-center" style="width:300px">
+    <input class="form-control form-control-sm me-2"
+           placeholder="Search inventories and items..."
+           value="@_searchQuery"
+           @oninput="e => _searchQuery = e.Value?.ToString() ?? string.Empty"
+           @onkeydown="HandleSearchKeyDown" />
+    <button class="btn btn-sm btn-outline-secondary"
+            @onclick="ExecuteSearch">
+        🔍
+    </button>
+</div>
+
+@code {
+    private string _searchQuery = string.Empty;
+
+    private void HandleSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            ExecuteSearch();
+    }
+
+    private void ExecuteSearch()
+    {
+        if (string.IsNullOrWhiteSpace(_searchQuery)) return;
+        Navigation.NavigateTo(
+            $"/search?q={Uri.EscapeDataString(_searchQuery)}");
+    }
+}

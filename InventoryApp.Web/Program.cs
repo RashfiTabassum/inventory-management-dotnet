@@ -23,6 +23,7 @@ builder.Services.AddScoped<InventoryApp.Data.Services.AccessService>();
 builder.Services.AddScoped<InventoryApp.Data.Services.CustomFieldService>();
 builder.Services.AddScoped<InventoryApp.Data.CustomId.CustomIdGenerator>();
 builder.Services.AddScoped<InventoryApp.Data.Services.CommentService>();
+builder.Services.AddScoped<InventoryApp.Data.Services.SearchService>();
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
