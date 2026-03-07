@@ -1,9 +1,17 @@
 ﻿using InventoryApp.Data.Context;
 using InventoryApp.Data.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 namespace InventoryApp.Data.Services
 {
+    public class InventoryWithLikes
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public InventoryCategory Category { get; set; }
+        public int LikeCount { get; set; }
+    }
     public class InventoryService
     {
         private readonly ApplicationDbContext _db;
@@ -18,7 +26,7 @@ namespace InventoryApp.Data.Services
         {
             return await _db.Inventories
                 .Include(i => i.Owner)
-                .Include(i => i.Tags)
+                //.Include(i => i.Tags)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(count)
                 .Select(i => new Inventory
@@ -30,7 +38,7 @@ namespace InventoryApp.Data.Services
                     CreatedAt = i.CreatedAt,
                     OwnerId = i.OwnerId,
                     Owner = i.Owner,
-                    Tags = i.Tags
+                    //Tags = i.Tags
                 })
                 .ToListAsync();
         }
@@ -40,7 +48,7 @@ namespace InventoryApp.Data.Services
         {
             return await _db.Inventories
                 .Include(i => i.Owner)
-                .Include(i => i.Tags)
+                //.Include(i => i.Tags)
                 .Include(i => i.CustomFields)
                 .Include(i => i.AccessList)
                     .ThenInclude(a => a.User)
@@ -69,6 +77,8 @@ namespace InventoryApp.Data.Services
             existing.Category = inventory.Category;
             existing.ImageUrl = inventory.ImageUrl;
             existing.IsPublicWrite = inventory.IsPublicWrite;
+            //existing.Tags = inventory.Tags;
+            existing.CustomIdFormat = inventory.CustomIdFormat;
             existing.Version = inventory.Version + 1;
 
             await _db.SaveChangesAsync();
@@ -94,7 +104,7 @@ namespace InventoryApp.Data.Services
         public async Task<List<Inventory>> GetOwnedByUserAsync(string userId)
         {
             return await _db.Inventories
-                .Include(i => i.Tags)
+                //.Include(i => i.Tags)
                 .Where(i => i.OwnerId == userId)
                 .OrderByDescending(i => i.CreatedAt)
                 .Select(i => new Inventory
@@ -105,29 +115,26 @@ namespace InventoryApp.Data.Services
                     Category = i.Category,
                     CreatedAt = i.CreatedAt,
                     OwnerId = i.OwnerId,
-                    Tags = i.Tags
+                    //Tags = i.Tags
                 })
                 .ToListAsync();
         }
 
         // Get top 5 most popular inventories
-        public async Task<List<Inventory>> GetTopInventoriesAsync()
+        public async Task<List<InventoryWithLikes>> GetTopInventoriesAsync(int count)
         {
             return await _db.Inventories
-                .Include(i => i.Owner)
-                .Include(i => i.Items)
-                .OrderByDescending(i => i.Items.Count)
-                .Take(5)
-                .Select(i => new Inventory
+                .Select(i => new InventoryWithLikes
                 {
                     Id = i.Id,
                     Name = i.Name,
-                    Description = i.Description,
                     Category = i.Category,
-                    OwnerId = i.OwnerId,
-                    Owner = i.Owner,
-                    Items = i.Items
+                    LikeCount = i.Items
+                        .SelectMany(item => item.Likes)
+                        .Count()
                 })
+                .OrderByDescending(i => i.LikeCount)
+                .Take(count)
                 .ToListAsync();
         }
 
@@ -148,6 +155,27 @@ namespace InventoryApp.Data.Services
                     Owner = a.Inventory.Owner
                 })
                 .ToListAsync();
+        }
+        public async Task<Dictionary<string, int>> GetTagCloudAsync()
+        {
+            var tags = await _db.Tags
+                .GroupBy(t => t.Name.ToLower())
+                .Select(g => new { Name = g.Key, Count = g.Count() })
+                .OrderByDescending(t => t.Count)
+                .Take(20)
+                .ToListAsync();
+
+            return tags.ToDictionary(t => t.Name, t => t.Count);
+        }
+
+        public async Task<int> GetTotalItemCountAsync()
+        {
+            return await _db.Items.CountAsync();
+        }
+
+        public async Task<int> GetTotalUserCountAsync()
+        {
+            return await _db.Users.CountAsync();
         }
     }
 }

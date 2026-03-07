@@ -1,5 +1,6 @@
 ﻿@rendermode InteractiveServer
 @inject InventoryService InventoryService
+@using System.Linq
 
 @if (_inventory == null)
 {
@@ -44,6 +45,12 @@ else
                     </label>
                 </div>
             </div>
+            <div class="mb-3">
+                <label class="form-label">Tags <small class="text-muted">(comma separated)</small></label>
+                <input class="form-control"
+                       value="@_tags"
+                       @oninput="e => { _tags = e.Value?.ToString() ?? string.Empty; MarkDirty(); }" />
+            </div>
 
             @if (_statusMessage != null)
             {
@@ -74,6 +81,7 @@ else
     private bool _isDirty = false;
     private bool _saveError = false;
     private string? _statusMessage;
+    private string _tags = string.Empty;
 
     private System.Timers.Timer? _autoSaveTimer;
 
@@ -81,12 +89,14 @@ else
     {
         _inventory = await InventoryService.GetByIdAsync(InventoryId);
 
+
         if (_inventory != null)
         {
             _name = _inventory.Name;
             _description = _inventory.Description;
             _category = _inventory.Category;
             _isPublicWrite = _inventory.IsPublicWrite;
+            _tags = string.Join(", ", _inventory.Tags.Select(t => t.Name));
         }
 
         _autoSaveTimer = new System.Timers.Timer(8000);

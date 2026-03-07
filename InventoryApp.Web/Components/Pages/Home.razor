@@ -1,26 +1,163 @@
 ﻿@page "/"
+@rendermode InteractiveServer
+@inject InventoryApp.Data.Services.InventoryService InventoryService
+@inject NavigationManager Navigation
+@inject InventoryApp.Web.Services.LocalizationService Loc
 
-<PageTitle>Home</PageTitle>
+<PageTitle>InventoryApp</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="row mb-4">
+    <div class="col">
+        <h3>Welcome to InventoryApp</h3>
+        <p class="text-muted">
+            Create and manage your collections,
+            equipment, books, and more.
+        </p>
+    </div>
+</div>
 
-<AuthorizeView>
-    <Authorized>
-        <p>You are logged in as: @context.User.Identity!.Name</p>
-    </Authorized>
-    <NotAuthorized>
-        <p>You are not logged in.</p>
-    </NotAuthorized>
-</AuthorizeView>
+<div class="row">
+    <div class="col-md-7">
+        <h5>Latest Inventories</h5>
+        @if (_latestInventories == null)
+        {
+            <p>Loading...</p>
+        }
+        else if (_latestInventories.Count == 0)
+        {
+            <p class="text-muted">No inventories yet.</p>
+        }
+        else
+        {
+            <div class="list-group mb-4">
+                @foreach (var inv in _latestInventories)
+                {
+                    <button class="list-group-item list-group-item-action"
+                            @onclick="() => GoToInventory(inv.Id)">
+                        <div class="d-flex justify-content-between">
+                            <strong>@inv.Name</strong>
+                            <span class="badge bg-secondary">
+                                @inv.Category
+                            </span>
+                        </div>
+                        <small class="text-muted">
+                            by @inv.Owner.Email —
+                            @inv.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")
+                        </small>
+                    </button>
+                }
+            </div>
+        }
 
-<AuthorizeView Roles="Admin">
-    <Authorized>
-        <p style="color: green;">✓ You have Admin access.</p>
-    </Authorized>
-</AuthorizeView>
+        <h5>Top 5 Inventories by Likes</h5>
+        @if (_topInventories == null)
+        {
+            <p>Loading...</p>
+        }
+        else if (_topInventories.Count == 0)
+        {
+            <p class="text-muted">No likes yet.</p>
+        }
+        else
+        {
+            <table class="table table-hover table-bordered">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>Likes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < _topInventories.Count; i++)
+                    {
+                        var inv = _topInventories[i];
+                        var rank = i + 1;
+                        <tr @onclick="() => GoToInventory(inv.Id)"
+                            style="cursor:pointer">
+                            <td>@rank</td>
+                            <td>@inv.Name</td>
+                            <td>@inv.Category</td>
+                            <td>@inv.LikeCount</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
 
-<AuthorizeView Roles="User">
-    <Authorized>
-        <p style="color: blue;">✓ You have User access.</p>
-    </Authorized>
-</AuthorizeView>
+    <div class="col-md-4 offset-md-1">
+        <h5>Tag Cloud</h5>
+        @if (_tagCloud.Count == 0)
+        {
+            <p class="text-muted">No tags yet.</p>
+        }
+        else
+        {
+            <div class="d-flex flex-wrap gap-2">
+                @foreach (var tag in _tagCloud)
+                {
+                    <button class="btn btn-sm btn-outline-primary"
+                            @onclick="() => SearchTag(tag.Key)">
+                        @tag.Key
+                        <span class="badge bg-primary ms-1">
+                            @tag.Value
+                        </span>
+                    </button>
+                }
+            </div>
+        }
+
+        <div class="mt-4">
+            <h5>Quick Stats</h5>
+            <ul class="list-group">
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>Total Inventories</span>
+                    <strong>@_totalInventories</strong>
+                </li>
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>Total Items</span>
+                    <strong>@_totalItems</strong>
+                </li>
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>Total Users</span>
+                    <strong>@_totalUsers</strong>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<InventoryApp.Data.Models.Inventory>? _latestInventories;
+    private List<InventoryApp.Data.Services.InventoryWithLikes>? _topInventories;
+    private Dictionary<string, int> _tagCloud = new();
+    private int _totalInventories = 0;
+    private int _totalItems = 0;
+    private int _totalUsers = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _latestInventories = await InventoryService
+            .GetLatestInventoriesAsync(10);
+        _topInventories = await InventoryService
+            .GetTopInventoriesAsync(5);
+        _tagCloud = await InventoryService.GetTagCloudAsync();
+
+        _totalInventories = _latestInventories?.Count ?? 0;
+        _totalItems = await InventoryService.GetTotalItemCountAsync();
+        _totalUsers = await InventoryService.GetTotalUserCountAsync();
+    }
+
+    private void GoToInventory(int id)
+    {
+        Navigation.NavigateTo($"/inventories/{id}");
+    }
+
+    private void SearchTag(string tag)
+    {
+        Navigation.NavigateTo(
+            $"/search?q={Uri.EscapeDataString(tag)}");
+    }
+}
