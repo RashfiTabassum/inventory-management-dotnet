@@ -1,4 +1,7 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿@inject InventoryApp.Web.Services.LocalizationService Loc
+@implements IDisposable
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">InventoryApp</a>
     </div>
@@ -9,14 +12,14 @@
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="flex-column">
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+            <NavLink class="nav-link" href="">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> @Loc.Get("Home")
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="inventories">
-                <span class="bi bi-box-seam-fill" aria-hidden="true"></span> Inventories
+                <span class="bi bi-box-seam-fill" aria-hidden="true"></span> @Loc.Get("Inventories")
             </NavLink>
         </div>
 
@@ -24,7 +27,7 @@
             <Authorized>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="profile">
-                        <span class="bi bi-person-fill" aria-hidden="true"></span> My Profile
+                        <span class="bi bi-person-fill" aria-hidden="true"></span> @Loc.Get("MyProfile")
                     </NavLink>
                 </div>
             </Authorized>
@@ -34,10 +37,26 @@
             <Authorized>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="admin">
-                        <span class="bi bi-shield-fill" aria-hidden="true"></span> Admin
+                        <span class="bi bi-shield-fill" aria-hidden="true"></span> @Loc.Get("Admin")
                     </NavLink>
                 </div>
             </Authorized>
         </AuthorizeView>
     </nav>
 </div>
+@code {
+    protected override void OnInitialized()
+    {
+        Loc.OnLanguageChanged += OnLanguageChanged;
+    }
+
+    private void OnLanguageChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Loc.OnLanguageChanged -= OnLanguageChanged;
+    }
+}

@@ -24,6 +24,7 @@ builder.Services.AddScoped<InventoryApp.Data.Services.CustomFieldService>();
 builder.Services.AddScoped<InventoryApp.Data.CustomId.CustomIdGenerator>();
 builder.Services.AddScoped<InventoryApp.Data.Services.CommentService>();
 builder.Services.AddScoped<InventoryApp.Data.Services.SearchService>();
+builder.Services.AddSingleton<InventoryApp.Web.Services.LocalizationService>();
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
@@ -78,4 +79,15 @@ using (var scope = app.Services.CreateScope())
     await InventoryApp.Data.Seeding.AdminSeeder
         .SeedAdminAsync(scope.ServiceProvider, "rashfi2004@gmail.com");
 }
+
+app.Use(async (context, next) =>
+{
+    var loc = context.RequestServices
+        .GetRequiredService<InventoryApp.Web.Services.LocalizationService>();
+    if (context.Request.Cookies.TryGetValue("lang", out var lang))
+    {
+        loc.SetLanguage(lang);
+    }
+    await next();
+});
 app.Run();

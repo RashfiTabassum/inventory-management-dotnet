@@ -1,0 +1,33 @@
+﻿@rendermode InteractiveServer
+@inject InventoryApp.Web.Services.LocalizationService Loc
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<div class="d-flex align-items-center gap-2">
+    <button class="btn btn-sm @(_lang == "en" ? "btn-primary" : "btn-outline-secondary")"
+            @onclick='() => SwitchLanguage("en")'>
+        EN
+    </button>
+    <button class="btn btn-sm @(_lang == "ru" ? "btn-primary" : "btn-outline-secondary")"
+            @onclick='() => SwitchLanguage("ru")'>
+        RU
+    </button>
+</div>
+
+@code {
+    private string _lang = "en";
+
+    protected override void OnInitialized()
+    {
+        _lang = Loc.CurrentLanguage;
+    }
+
+    private async Task SwitchLanguage(string lang)
+    {
+        Loc.SetLanguage(lang);
+        _lang = lang;
+        await JS.InvokeVoidAsync("eval",
+        $"document.cookie='lang={lang};path=/;max-age=31536000'");
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+    }
+}

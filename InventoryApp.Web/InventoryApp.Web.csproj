@@ -23,4 +23,13 @@
     <ProjectReference Include="..\InventoryApp.Data\InventoryApp.Data.csproj" />
   </ItemGroup>
 
+   <ItemGroup>
+  <None Update="Resources\Strings.en.json">
+    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+  </None>
+  <None Update="Resources\Strings.ru.json">
+    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+  </None>
+</ItemGroup>
+
 </Project>
