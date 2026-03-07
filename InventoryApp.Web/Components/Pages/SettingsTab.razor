@@ -1,6 +1,7 @@
 ﻿@rendermode InteractiveServer
 @inject InventoryService InventoryService
 @using System.Linq
+@inject InventoryApp.Web.Services.CloudinaryService CloudinaryService
 
 @if (_inventory == null)
 {
@@ -50,6 +51,24 @@ else
                 <input class="form-control"
                        value="@_tags"
                        @oninput="e => { _tags = e.Value?.ToString() ?? string.Empty; MarkDirty(); }" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Inventory Image</label>
+                @if (!string.IsNullOrEmpty(_inventory.ImageUrl))
+                {
+                    <div class="mb-2">
+                        <img src="@_inventory.ImageUrl"
+                             style="max-width:300px; max-height:200px; object-fit:cover;"
+                             class="img-thumbnail" />
+                    </div>
+                }
+                <InputFile OnChange="HandleImageUpload"
+                           accept="image/*"
+                           class="form-control" />
+                @if (_uploading)
+                {
+                    <small class="text-muted">Uploading...</small>
+                }
             </div>
 
             @if (_statusMessage != null)
@@ -157,5 +176,41 @@ else
 
         if (_isDirty)
             await SaveAsync();
+    }
+    private bool _uploading = false;
+
+    private async Task HandleImageUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        if (file.Size > 5 * 1024 * 1024)
+        {
+            _statusMessage = "Image must be under 5MB.";
+            _saveError = true;
+            return;
+        }
+
+        _uploading = true;
+        StateHasChanged();
+
+        using var stream = file.OpenReadStream(5 * 1024 * 1024);
+        var url = await CloudinaryService
+            .UploadImageAsync(stream, file.Name);
+
+        _uploading = false;
+
+        if (url != null && _inventory != null)
+        {
+            _inventory.ImageUrl = url;
+            await InventoryService.UpdateAsync(_inventory);
+            _statusMessage = "Image uploaded successfully.";
+            _saveError = false;
+        }
+        else
+        {
+            _statusMessage = "Image upload failed.";
+            _saveError = true;
+        }
     }
 }

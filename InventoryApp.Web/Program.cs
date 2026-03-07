@@ -25,6 +25,8 @@ builder.Services.AddScoped<InventoryApp.Data.CustomId.CustomIdGenerator>();
 builder.Services.AddScoped<InventoryApp.Data.Services.CommentService>();
 builder.Services.AddScoped<InventoryApp.Data.Services.SearchService>();
 builder.Services.AddSingleton<InventoryApp.Web.Services.LocalizationService>();
+builder.Services.AddSingleton<InventoryApp.Web.Services.CloudinaryService>();
+
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
