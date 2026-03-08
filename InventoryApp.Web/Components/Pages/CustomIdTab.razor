@@ -3,6 +3,8 @@
 @inject InventoryApp.Data.CustomId.CustomIdGenerator CustomIdGenerator
 @using InventoryApp.Data.CustomId
 @using System.Text.Json
+@inject IJSRuntime JS
+@implements IDisposable
 
 @if (_loaded)
 {
@@ -22,32 +24,46 @@
             }
             else
             {
+                <p class="text-muted small">
+                    <i>Drag rows to reorder or drag outside the table to remove. Select rows and click Remove to delete parts.</i>
+                </p>
+
+                <div class="mb-2">
+                    <button class="btn btn-danger btn-sm"
+                            @onclick="RemoveSelected"
+                            disabled="@(!_selectedIndexes.Any())">
+                        Remove Selected
+                    </button>
+                    @if (_selectedIndexes.Any())
+                    {
+                        <span class="text-muted ms-2 small">@_selectedIndexes.Count selected</span>
+                    }
+                </div>
+
                 <table class="table table-bordered table-sm">
                     <thead>
                         <tr>
-                            <th>Order</th>
+                            <th style="width:30px"></th>
+                            <th style="width:40px">
+                                <input type="checkbox"
+                                       @onchange="ToggleSelectAll" />
+                            </th>
                             <th>Type</th>
                             <th>Config</th>
-                            <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="parts-sortable">
                         @for (int i = 0; i < _parts.Count; i++)
                         {
                             var index = i;
                             var part = _parts[i];
-                            <tr>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-secondary"
-                                            @onclick="() => MoveUp(index)"
-                                            disabled="@(index == 0)">
-                                        ↑
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-secondary ms-1"
-                                            @onclick="() => MoveDown(index)"
-                                            disabled="@(index == _parts.Count - 1)">
-                                        ↓
-                                    </button>
+                            <tr @key="part" class="@(_selectedIndexes.Contains(index) ? "table-active" : "")"
+                                style="cursor:grab">
+                                <td class="text-muted">⠿</td>
+                                <td @onclick:stopPropagation="true">
+                                    <input type="checkbox"
+                                           checked="@_selectedIndexes.Contains(index)"
+                                           @onchange="() => ToggleSelect(index)" />
                                 </td>
                                 <td>@GetPartLabel(part.Type)</td>
                                 <td>
@@ -73,22 +89,19 @@
                                                    type="checkbox"
                                                    checked="@part.LeadingZeros"
                                                    @onchange="e => { part.LeadingZeros = (bool)(e.Value ?? true); UpdatePreview(); }" />
-                                            <label class="form-check-label">
-                                                Leading zeros
-                                            </label>
+                                            <label class="form-check-label">Leading zeros</label>
                                         </div>
                                     }
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-danger"
-                                            @onclick="() => RemovePart(index)">
-                                        Remove
-                                    </button>
                                 </td>
                             </tr>
                         }
                     </tbody>
                 </table>
+
+                <div id="parts-trash" class="border border-danger border-dashed rounded text-center text-danger p-2 mb-2 small"
+                     style="min-height:40px; opacity:0.5;">
+                    🗑 Drag parts here to remove
+                </div>
             }
 
             <h6 class="mt-3">Add Part</h6>
@@ -105,6 +118,12 @@
                         disabled="@(_parts.Count >= 10)">
                     + Add
                 </button>
+                <span class="ms-1" tabindex="0"
+                      data-bs-toggle="popover" data-bs-trigger="hover focus"
+                      data-bs-html="true"
+                      data-bs-content="@GetAllPartsHelp()"
+                      title="Part Types Help"
+                      style="cursor:help; font-size:1.1rem;">ⓘ</span>
             </div>
 
             <div class="mb-3">
@@ -132,20 +151,25 @@
                         <dt>Fixed Text</dt>
                         <dd>Any text you type, e.g. "EQ-"</dd>
                         <dt>6-digit Random</dt>
-                        <dd>e.g. 482910</dd>
+                        <dd>e.g. 482910 (optionally with leading zeros)</dd>
                         <dt>9-digit Random</dt>
-                        <dd>e.g. 482910234</dd>
+                        <dd>e.g. 482910234 (optionally with leading zeros)</dd>
                         <dt>20-bit Random</dt>
-                        <dd>e.g. 0524288</dd>
+                        <dd>Range: 0–1048575 (optionally with leading zeros)</dd>
                         <dt>32-bit Random</dt>
-                        <dd>e.g. 1234567890</dd>
+                        <dd>Range: 0–2147483647 (optionally with leading zeros)</dd>
                         <dt>GUID</dt>
-                        <dd>e.g. a3f2c1d4-...</dd>
+                        <dd>e.g. a3f2c1d4-b8e7-4a1f-...</dd>
                         <dt>Date/Time</dt>
-                        <dd>Format: yyyyMMdd, yyyy-MM-dd, etc.</dd>
+                        <dd>Custom .NET format, e.g. <code>yyyyMMdd</code>, <code>yyyy-MM-dd_HHmm</code></dd>
                         <dt>Sequence</dt>
-                        <dd>Auto-incrementing number</dd>
+                        <dd>Auto-incrementing: largest existing + 1</dd>
                     </dl>
+                    <hr />
+                    <small class="text-muted">
+                        <strong>Tip:</strong> Hover ⓘ next to "Add" for quick reference.
+                        Drag parts outside the table to remove them.
+                    </small>
                 </div>
             </div>
         </div>
@@ -161,6 +185,7 @@
     private string _preview = string.Empty;
     private string? _message;
     private bool _loaded = false;
+    private bool _needsSortableInit = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -182,6 +207,7 @@
         }
 
         _loaded = true;
+        _needsSortableInit = true;
         UpdatePreview();
     }
 
@@ -201,27 +227,27 @@
         UpdatePreview();
     }
 
-    private void RemovePart(int index)
-    {
-        _parts.RemoveAt(index);
-        UpdatePreview();
-    }
+    // private void RemovePart(int index)
+    // {
+    //     _parts.RemoveAt(index);
+    //     UpdatePreview();
+    // }
 
-    private void MoveUp(int index)
-    {
-        if (index <= 0) return;
-        (_parts[index], _parts[index - 1]) =
-            (_parts[index - 1], _parts[index]);
-        UpdatePreview();
-    }
+    // private void MoveUp(int index)
+    // {
+    //     if (index <= 0) return;
+    //     (_parts[index], _parts[index - 1]) =
+    //         (_parts[index - 1], _parts[index]);
+    //     UpdatePreview();
+    // }
 
-    private void MoveDown(int index)
-    {
-        if (index >= _parts.Count - 1) return;
-        (_parts[index], _parts[index + 1]) =
-            (_parts[index + 1], _parts[index]);
-        UpdatePreview();
-    }
+    // private void MoveDown(int index)
+    // {
+    //     if (index >= _parts.Count - 1) return;
+    //     (_parts[index], _parts[index + 1]) =
+    //         (_parts[index + 1], _parts[index]);
+    //     UpdatePreview();
+    // }
 
     private void UpdatePreview()
     {
@@ -253,5 +279,91 @@
             CustomIdPartType.Sequence => "Sequence",
             _ => type.ToString()
         };
+    }
+    private HashSet<int> _selectedIndexes = new();
+    private DotNetObjectReference<CustomIdTab>? _dotNetRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_needsSortableInit && _parts.Count > 0)
+        {
+            _needsSortableInit = false;
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync(
+                "initSortableWithRemove", "parts-sortable", _dotNetRef);
+        }
+        await JS.InvokeVoidAsync("initPopovers");
+    }
+
+    [JSInvokable]
+    public void OnFieldReordered(int oldIndex, int newIndex)
+    {
+        if (oldIndex == newIndex) return;
+        if (oldIndex < 0 || oldIndex >= _parts.Count) return;
+        if (newIndex < 0 || newIndex >= _parts.Count) return;
+
+        var part = _parts[oldIndex];
+        _parts.RemoveAt(oldIndex);
+        _parts.Insert(newIndex, part);
+        _selectedIndexes.Clear();
+        UpdatePreview();
+        _needsSortableInit = true;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnPartRemoved(int index)
+    {
+        if (index < 0 || index >= _parts.Count) return;
+        _parts.RemoveAt(index);
+        _selectedIndexes.Clear();
+        UpdatePreview();
+        _needsSortableInit = true;
+        StateHasChanged();
+    }
+
+    private void ToggleSelect(int index)
+    {
+        if (_selectedIndexes.Contains(index))
+            _selectedIndexes.Remove(index);
+        else
+            _selectedIndexes.Add(index);
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        var all = (bool)(e.Value ?? false);
+        if (all)
+            _selectedIndexes = Enumerable.Range(0, _parts.Count).ToHashSet();
+        else
+            _selectedIndexes.Clear();
+    }
+
+    private void RemoveSelected()
+    {
+        var toRemove = _selectedIndexes
+            .OrderByDescending(i => i)
+            .ToList();
+        foreach (var i in toRemove)
+            _parts.RemoveAt(i);
+        _selectedIndexes.Clear();
+        UpdatePreview();
+    }
+
+    private string GetAllPartsHelp()
+    {
+        return "<b>Fixed Text</b> — Any literal text, e.g. &quot;EQ-&quot;<br/>" +
+               "<b>6-digit Random</b> — e.g. 482910<br/>" +
+               "<b>9-digit Random</b> — e.g. 482910234<br/>" +
+               "<b>20-bit Random</b> — 0–1048575<br/>" +
+               "<b>32-bit Random</b> — 0–2147483647<br/>" +
+               "<b>GUID</b> — e.g. a3f2c1d4-...<br/>" +
+               "<b>Date/Time</b> — .NET format (yyyyMMdd)<br/>" +
+               "<b>Sequence</b> — Auto-incrementing number";
+    }
+
+    public void Dispose()
+    {
+        _dotNetRef?.Dispose();
     }
 }

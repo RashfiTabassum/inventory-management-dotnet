@@ -16,9 +16,24 @@
         <!-- Owned Inventories -->
         <div class="d-flex justify-content-between align-items-center mb-2">
             <h5>My Inventories</h5>
-            <a href="/inventories/create" class="btn btn-primary btn-sm">
-                + New Inventory
-            </a>
+            <div class="d-flex gap-2">
+                @if (_selectedOwnedIds.Any())
+                {
+                    <button class="btn btn-danger btn-sm"
+                            @onclick="HandleDeleteSelected">
+                        Delete Selected (@_selectedOwnedIds.Count)
+                    </button>
+                }
+                <a href="/inventories/create" class="btn btn-primary btn-sm">
+                    + New Inventory
+                </a>
+            </div>
+        </div>
+
+        <div class="mb-2">
+            <input class="form-control form-control-sm" style="max-width:300px"
+                   placeholder="Filter by name..."
+                   @oninput="OnOwnedFilterChanged" />
         </div>
 
         @if (_ownedInventories == null)
@@ -34,29 +49,37 @@
             <table class="table table-hover table-bordered mb-4">
                 <thead>
                     <tr>
+                        <th style="width:40px">
+                            <input type="checkbox"
+                                   @onchange="ToggleSelectAllOwned" />
+                        </th>
                         <th @onclick='() => SortOwned("name")' 
                             style="cursor:pointer">
-                            Name @SortIcon(_ownedSortField, "name")
+                            Name @SortIcon(_ownedSortField, "name", _ownedSortAsc)
                         </th>
                         <th @onclick='() => SortOwned("category")' 
                             style="cursor:pointer">
-                            Category @SortIcon(_ownedSortField, "category")
+                            Category @SortIcon(_ownedSortField, "category", _ownedSortAsc)
                         </th>
                         <th @onclick='() => SortOwned("date")' 
                             style="cursor:pointer">
-                            Created @SortIcon(_ownedSortField, "date")
+                            Created @SortIcon(_ownedSortField, "date", _ownedSortAsc)
                         </th>
-                        @* <th>Actions</th> *@
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var inv in _ownedInventories)
                     {
-                        <tr @onclick="() => GoToInventory(inv.Id)"
+                        <tr class="@(_selectedOwnedIds.Contains(inv.Id) ? "table-active" : "")"
                             style="cursor:pointer">
-                            <td>@inv.Name</td>
-                            <td>@inv.Category</td>
-                            <td>@inv.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</td>
+                            <td @onclick:stopPropagation="true">
+                                <input type="checkbox"
+                                       checked="@_selectedOwnedIds.Contains(inv.Id)"
+                                       @onchange="() => ToggleSelectOwned(inv.Id)" />
+                            </td>
+                            <td @onclick="() => GoToInventory(inv.Id)">@inv.Name</td>
+                            <td @onclick="() => GoToInventory(inv.Id)">@inv.Category</td>
+                            <td @onclick="() => GoToInventory(inv.Id)">@inv.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</td>
                         </tr>
                     }
                 </tbody>
@@ -67,6 +90,12 @@
 
         <!-- Inventories with Write Access -->
         <h5 class="mb-2">Inventories I Can Edit</h5>
+
+        <div class="mb-2">
+            <input class="form-control form-control-sm" style="max-width:300px"
+                   placeholder="Filter by name..."
+                   @oninput="OnAccessFilterChanged" />
+        </div>
 
         @if (_accessInventories == null)
         {
@@ -83,15 +112,15 @@
                     <tr>
                         <th @onclick='() => SortAccess("name")' 
                             style="cursor:pointer">
-                            Name @SortIcon(_accessSortField, "name")
+                            Name @SortIcon(_accessSortField, "name", _accessSortAsc)
                         </th>
                         <th @onclick='() => SortAccess("owner")' 
                             style="cursor:pointer">
-                            Owner @SortIcon(_accessSortField, "owner")
+                            Owner @SortIcon(_accessSortField, "owner", _accessSortAsc)
                         </th>
                         <th @onclick='() => SortAccess("category")' 
                             style="cursor:pointer">
-                            Category @SortIcon(_accessSortField, "category")
+                            Category @SortIcon(_accessSortField, "category", _accessSortAsc)
                         </th>
                     </tr>
                 </thead>
@@ -117,12 +146,17 @@
 @code {
     private List<Inventory>? _ownedInventories;
     private List<Inventory>? _accessInventories;
+    private List<Inventory> _allOwnedInventories = new();
+    private List<Inventory> _allAccessInventories = new();
     private string? _currentUserId;
 
     private string _ownedSortField = "date";
     private bool _ownedSortAsc = false;
     private string _accessSortField = "name";
     private bool _accessSortAsc = true;
+    private string _ownedFilter = string.Empty;
+    private string _accessFilter = string.Empty;
+    private HashSet<int> _selectedOwnedIds = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -144,13 +178,38 @@
 
     private async Task LoadDataAsync()
     {
-        var owned = await InventoryService
+        _allOwnedInventories = await InventoryService
             .GetOwnedByUserAsync(_currentUserId!);
-        var access = await InventoryService
+        _allAccessInventories = await InventoryService
             .GetInventoriesWithWriteAccessAsync(_currentUserId!);
 
-        _ownedInventories = ApplySortOwned(owned);
-        _accessInventories = ApplySortAccess(access);
+        ApplyFiltersAndSort();
+    }
+
+    private void ApplyFiltersAndSort()
+    {
+        var owned = _allOwnedInventories.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_ownedFilter))
+            owned = owned.Where(i => i.Name.Contains(_ownedFilter, StringComparison.OrdinalIgnoreCase));
+        _ownedInventories = ApplySortOwned(owned.ToList());
+
+        var access = _allAccessInventories.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_accessFilter))
+            access = access.Where(i => i.Name.Contains(_accessFilter, StringComparison.OrdinalIgnoreCase));
+        _accessInventories = ApplySortAccess(access.ToList());
+    }
+
+    private void OnOwnedFilterChanged(ChangeEventArgs e)
+    {
+        _ownedFilter = e.Value?.ToString() ?? string.Empty;
+        _selectedOwnedIds.Clear();
+        ApplyFiltersAndSort();
+    }
+
+    private void OnAccessFilterChanged(ChangeEventArgs e)
+    {
+        _accessFilter = e.Value?.ToString() ?? string.Empty;
+        ApplyFiltersAndSort();
     }
 
     private void SortOwned(string field)
@@ -162,7 +221,7 @@
             _ownedSortField = field;
             _ownedSortAsc = true;
         }
-        _ownedInventories = ApplySortOwned(_ownedInventories!);
+        ApplyFiltersAndSort();
     }
 
     private void SortAccess(string field)
@@ -174,7 +233,7 @@
             _accessSortField = field;
             _accessSortAsc = true;
         }
-        _accessInventories = ApplySortAccess(_accessInventories!);
+        ApplyFiltersAndSort();
     }
 
     private List<Inventory> ApplySortOwned(List<Inventory> list)
@@ -209,10 +268,39 @@
         };
     }
 
-    private string SortIcon(string currentField, string thisField)
+    private string SortIcon(string currentField, string thisField, bool asc)
     {
         if (currentField != thisField) return "↕";
-        return "↕";
+        return asc ? "↑" : "↓";
+    }
+
+    private void ToggleSelectOwned(int id)
+    {
+        if (!_selectedOwnedIds.Remove(id))
+            _selectedOwnedIds.Add(id);
+    }
+
+    private void ToggleSelectAllOwned(ChangeEventArgs e)
+    {
+        if ((bool)(e.Value ?? false) && _ownedInventories != null)
+            _selectedOwnedIds = _ownedInventories.Select(i => i.Id).ToHashSet();
+        else
+            _selectedOwnedIds.Clear();
+    }
+
+    private async Task HandleDeleteSelected()
+    {
+        var authState = await AuthStateProvider
+            .GetAuthenticationStateAsync();
+        var isAdmin = authState.User.IsInRole("Admin");
+
+        foreach (var id in _selectedOwnedIds.ToList())
+        {
+            await InventoryService.DeleteAsync(id, _currentUserId!, isAdmin);
+        }
+
+        _selectedOwnedIds.Clear();
+        await LoadDataAsync();
     }
 
     private async Task HandleDelete(int inventoryId)

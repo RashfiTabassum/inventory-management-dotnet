@@ -16,18 +16,64 @@
     </CascadingAuthenticationState>
     <script src="_framework/blazor.web.js"></script>
     <script src="app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <script>
         window.initSortable = (elementId, dotNetRef) => {
             const el = document.getElementById(elementId);
             if (!el) return;
-            Sortable.create(el, {
+            if (el._sortable) {
+                el._sortable.destroy();
+            }
+            el._sortable = Sortable.create(el, {
                 animation: 150,
                 onEnd: function (evt) {
+                    const oldIdx = evt.oldIndex;
+                    const newIdx = evt.newIndex;
                     dotNetRef.invokeMethodAsync(
                         'OnFieldReordered',
-                        evt.oldIndex,
-                        evt.newIndex);
+                        oldIdx,
+                        newIdx);
+                }
+            });
+        };
+
+        window.initSortableWithRemove = (elementId, dotNetRef) => {
+            const el = document.getElementById(elementId);
+            const trash = document.getElementById('parts-trash');
+            if (!el) return;
+            if (el._sortable) el._sortable.destroy();
+            if (trash && trash._sortable) trash._sortable.destroy();
+
+            el._sortable = Sortable.create(el, {
+                animation: 150,
+                group: { name: 'parts', pull: true, put: true },
+                onEnd: function (evt) {
+                    if (evt.to === el) {
+                        dotNetRef.invokeMethodAsync('OnFieldReordered', evt.oldIndex, evt.newIndex);
+                    }
+                }
+            });
+
+            if (trash) {
+                trash._sortable = Sortable.create(trash, {
+                    group: { name: 'parts', pull: false, put: true },
+                    ghostClass: 'bg-danger-subtle',
+                    onAdd: function (evt) {
+                        // Remove the DOM element that Sortable moved into trash
+                        evt.item.remove();
+                        dotNetRef.invokeMethodAsync('OnPartRemoved', evt.oldIndex);
+                    }
+                });
+            }
+        };
+
+        window.initPopovers = () => {
+            const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"]');
+            popoverTriggerList.forEach(el => {
+                if (!el._popoverInit) {
+                    new bootstrap.Popover(el);
+                    el._popoverInit = true;
                 }
             });
         };

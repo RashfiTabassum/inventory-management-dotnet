@@ -22,6 +22,8 @@ namespace InventoryApp.Data.Models
         public int InventoryId { get; set; } // foreign key to the Inventory that this item belongs to.
         public Inventory Inventory { get; set; } = null!;
 
+        public int Version { get; set; } = 1;
+
         public ICollection<CustomFieldValue> CustomFieldValues { get; set; } = new List<CustomFieldValue>();
 
         public ICollection<Like> Likes { get; set; } = new List<Like>();

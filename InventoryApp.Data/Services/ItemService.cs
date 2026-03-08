@@ -65,11 +65,14 @@ namespace InventoryApp.Data.Services
                 .FirstOrDefaultAsync(i => i.Id == item.Id);
 
             if (existing == null) return false;
+            if (existing.Version != item.Version) return false;
 
             existing.Name = item.Name;
             existing.CustomId = item.CustomId;
+            existing.Version++;
 
             await _db.SaveChangesAsync();
+            item.Version = existing.Version;
             return true;
         }
 

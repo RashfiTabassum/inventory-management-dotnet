@@ -20,30 +20,29 @@ namespace InventoryApp.Data.Services
 
         public async Task<List<UserWithRoles>> GetAllUsersAsync()
         {
-            var users = await _db.Users
-                .Select(u => new ApplicationUser
+            var usersWithRoles = await _db.Users
+                .Select(u => new
                 {
-                    Id = u.Id,
-                    Email = u.Email,
-                    UserName = u.UserName,
-                    IsBlocked = u.IsBlocked,
-                    LockoutEnd = u.LockoutEnd
+                    User = new ApplicationUser
+                    {
+                        Id = u.Id,
+                        Email = u.Email,
+                        UserName = u.UserName,
+                        IsBlocked = u.IsBlocked,
+                        LockoutEnd = u.LockoutEnd
+                    },
+                    Roles = _db.UserRoles
+                        .Where(ur => ur.UserId == u.Id)
+                        .Join(_db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name!)
+                        .ToList()
                 })
                 .ToListAsync();
 
-            var result = new List<UserWithRoles>();
-
-            foreach (var user in users)
+            return usersWithRoles.Select(x => new UserWithRoles
             {
-                var roles = await _userManager.GetRolesAsync(user);
-                result.Add(new UserWithRoles
-                {
-                    User = user,
-                    Roles = roles.ToList()
-                });
-            }
-
-            return result;
+                User = x.User,
+                Roles = x.Roles
+            }).ToList();
         }
 
         public async Task<bool> BlockUserAsync(string userId)

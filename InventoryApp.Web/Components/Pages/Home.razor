@@ -29,24 +29,28 @@
         }
         else
         {
-            <div class="list-group mb-4">
-                @foreach (var inv in _latestInventories)
-                {
-                    <button class="list-group-item list-group-item-action"
-                            @onclick="() => GoToInventory(inv.Id)">
-                        <div class="d-flex justify-content-between">
-                            <strong>@inv.Name</strong>
-                            <span class="badge bg-secondary">
-                                @inv.Category
-                            </span>
-                        </div>
-                        <small class="text-muted">
-                            by @inv.Owner.Email —
-                            @inv.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")
-                        </small>
-                    </button>
-                }
-            </div>
+            <table class="table table-hover table-bordered mb-4">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>Owner</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var inv in _latestInventories)
+                    {
+                        <tr @onclick="() => GoToInventory(inv.Id)"
+                            style="cursor:pointer">
+                            <td>@inv.Name</td>
+                            <td><span class="badge bg-secondary">@inv.Category</span></td>
+                            <td>@inv.Owner.Email</td>
+                            <td>@inv.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
         }
 
         <h5>Top 5 Inventories by Items</h5>
