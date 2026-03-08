@@ -73,20 +73,36 @@ namespace InventoryApp.Data.Services
             return true;
         }
 
+        //public async Task<bool> DeleteAsync(int id, string userId, bool isAdmin)
+        //{
+        //    var item = await _db.Items
+        //        .FirstOrDefaultAsync(i => i.Id == id);
+
+        //    if (item == null) return false;
+
+        //    if (item.CreatedById != userId && !isAdmin) return false;
+
+        //    _db.Items.Remove(item);
+        //    await _db.SaveChangesAsync();
+        //    return true;
+        //}
         public async Task<bool> DeleteAsync(int id, string userId, bool isAdmin)
         {
             var item = await _db.Items
+                .Include(i => i.CustomFieldValues)
+                .Include(i => i.Likes)
                 .FirstOrDefaultAsync(i => i.Id == id);
 
             if (item == null) return false;
-
             if (item.CreatedById != userId && !isAdmin) return false;
 
+            _db.CustomFieldValues.RemoveRange(item.CustomFieldValues);
+            _db.Likes.RemoveRange(item.Likes);
             _db.Items.Remove(item);
+
             await _db.SaveChangesAsync();
             return true;
         }
-
         public async Task<bool> HasWriteAccessAsync(
             int inventoryId, string userId)
         {

@@ -9,7 +9,15 @@
 }
 else
 {
-    @if (_hasWriteAccess)
+    @* @if (_hasWriteAccess) *@
+    @* { *@
+    @*     <div class="mb-3"> *@
+    @*         <button class="btn btn-primary" @onclick="() => _showCreateForm = true"> *@
+    @*             + Add Item *@
+    @*         </button> *@
+    @*     </div> *@
+    @* } *@
+    @if (_hasWriteAccess && _currentUserId != null)
     {
         <div class="mb-3">
             <button class="btn btn-primary" @onclick="() => _showCreateForm = true">
@@ -17,7 +25,6 @@ else
             </button>
         </div>
     }
-
     @if (_showCreateForm)
     {
         <div class="card mb-3">
@@ -104,6 +111,7 @@ else
                 await ItemService.HasWriteAccessAsync(
                     InventoryId, _currentUserId);
         }
+
 
         await LoadItemsAsync();
     }
