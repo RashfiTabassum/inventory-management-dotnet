@@ -100,9 +100,17 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     if (isPostgres)
-        await db.Database.EnsureCreatedAsync();   // fresh schema with correct PG types
+    {
+        // Drop leftover migrations table from previous failed MigrateAsync attempt
+        // so EnsureCreated sees an empty DB and creates the full schema.
+        await db.Database.ExecuteSqlRawAsync(
+            "DROP TABLE IF EXISTS \"__EFMigrationsHistory\"");
+        await db.Database.EnsureCreatedAsync();
+    }
     else
-        await db.Database.MigrateAsync();          // SQL Server uses existing migrations
+    {
+        await db.Database.MigrateAsync();
+    }
 
     await InventoryApp.Data.Seeding.RoleSeeder
         .SeedRolesAsync(scope.ServiceProvider);
