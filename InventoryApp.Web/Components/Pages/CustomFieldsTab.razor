@@ -1,5 +1,7 @@
 ﻿@rendermode InteractiveServer
 @inject CustomFieldService CustomFieldService
+@inject IJSRuntime JS
+@implements IDisposable
 
 @if (_fields == null)
 {
@@ -19,17 +21,14 @@ else
         <div class="card mb-3">
             <div class="card-body">
                 <h6>New Field</h6>
-
                 <div class="mb-2">
                     <label class="form-label">Title *</label>
                     <input class="form-control" @bind="_newTitle" />
                 </div>
-
                 <div class="mb-2">
                     <label class="form-label">Description (shown as tooltip)</label>
                     <input class="form-control" @bind="_newDescription" />
                 </div>
-
                 <div class="mb-2">
                     <label class="form-label">Field Type</label>
                     <select class="form-select" @bind="_newFieldType">
@@ -39,7 +38,6 @@ else
                         }
                     </select>
                 </div>
-
                 <div class="mb-2">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox"
@@ -49,12 +47,10 @@ else
                         </label>
                     </div>
                 </div>
-
                 @if (_addError != null)
                 {
                     <div class="alert alert-danger">@_addError</div>
                 }
-
                 <button class="btn btn-success btn-sm"
                         @onclick="HandleAddField">
                     Save Field
@@ -73,30 +69,48 @@ else
     }
     else
     {
+        <p class="text-muted small">
+            <i>Drag rows to reorder. Select rows and click Delete to remove fields.</i>
+        </p>
+
+        <div class="mb-2">
+            <button class="btn btn-danger btn-sm"
+                    @onclick="HandleDeleteSelected"
+                    disabled="@(!_selectedFieldIds.Any())">
+                Delete Selected
+            </button>
+            @if (_selectedFieldIds.Any())
+            {
+                <span class="text-muted ms-2 small">@_selectedFieldIds.Count selected</span>
+            }
+        </div>
+
         <table class="table table-bordered">
             <thead>
                 <tr>
-                    <th>Order</th>
+                    <th style="width:30px"></th>
+                    <th style="width:40px">
+                        <input type="checkbox"
+                               checked="@(_fields.Count > 0 && _selectedFieldIds.Count == _fields.Count)"
+                               @onchange="ToggleSelectAll" />
+                    </th>
                     <th>Title</th>
                     <th>Type</th>
                     <th>Description</th>
                     <th>Show in Table</th>
-                    <th>Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="fields-sortable">
                 @foreach (var field in _fields)
                 {
-                    <tr>
-                        <td>
-                            <button class="btn btn-sm btn-outline-secondary"
-                                    @onclick="() => HandleMoveUp(field.Id)">
-                                ↑
-                            </button>
-                            <button class="btn btn-sm btn-outline-secondary ms-1"
-                                    @onclick="() => HandleMoveDown(field.Id)">
-                                ↓
-                            </button>
+                    <tr data-id="@field.Id"
+                        style="cursor:grab"
+                        class="@(_selectedFieldIds.Contains(field.Id) ? "table-active" : "")">
+                        <td class="text-muted">⠿</td>
+                        <td @onclick:stopPropagation="true">
+                            <input type="checkbox"
+                                   checked="@_selectedFieldIds.Contains(field.Id)"
+                                   @onchange="() => ToggleSelect(field.Id)" />
                         </td>
                         <td>@field.Title</td>
                         <td>@GetFieldTypeLabel(field.FieldType)</td>
@@ -110,12 +124,6 @@ else
                             {
                                 <span class="badge bg-secondary">No</span>
                             }
-                        </td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-danger"
-                                    @onclick="() => HandleDelete(field.Id)">
-                                Delete
-                            </button>
                         </td>
                     </tr>
                 }
@@ -141,10 +149,40 @@ else
     private bool _newShowInTable = true;
     private string? _addError;
     private string? _message;
+    private DotNetObjectReference<CustomFieldsTab>? _dotNetRef;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadFieldsAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_fields != null && _fields.Count > 0)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync(
+                "initSortable", "fields-sortable", _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnFieldReordered(int oldIndex, int newIndex)
+    {
+        if (_fields == null) return;
+
+        var field = _fields[oldIndex];
+        _fields.RemoveAt(oldIndex);
+        _fields.Insert(newIndex, field);
+
+        for (int i = 0; i < _fields.Count; i++)
+        {
+            _fields[i].DisplayOrder = i + 1;
+            await CustomFieldService.UpdateAsync(_fields[i]);
+        }
+
+        await LoadFieldsAsync();
+        StateHasChanged();
     }
 
     private async Task LoadFieldsAsync()
@@ -192,24 +230,12 @@ else
         await LoadFieldsAsync();
     }
 
-    private async Task HandleDelete(int fieldId)
-    {
-        await CustomFieldService.DeleteAsync(fieldId);
-        _message = "Field deleted.";
-        await LoadFieldsAsync();
-    }
-
-    private async Task HandleMoveUp(int fieldId)
-    {
-        await CustomFieldService.MoveUpAsync(fieldId);
-        await LoadFieldsAsync();
-    }
-
-    private async Task HandleMoveDown(int fieldId)
-    {
-        await CustomFieldService.MoveDownAsync(fieldId);
-        await LoadFieldsAsync();
-    }
+    // private async Task HandleDelete(int fieldId)
+    // {
+    //     await CustomFieldService.DeleteAsync(fieldId);
+    //     _message = "Field deleted.";
+    //     await LoadFieldsAsync();
+    // }
 
     private string GetFieldTypeLabel(CustomFieldType type)
     {
@@ -222,5 +248,38 @@ else
             CustomFieldType.Boolean => "Checkbox (Yes/No)",
             _ => type.ToString()
         };
+    }
+
+    public void Dispose()
+    {
+        _dotNetRef?.Dispose();
+    }
+    private HashSet<int> _selectedFieldIds = new();
+
+    private void ToggleSelect(int fieldId)
+    {
+        if (_selectedFieldIds.Contains(fieldId))
+            _selectedFieldIds.Remove(fieldId);
+        else
+            _selectedFieldIds.Add(fieldId);
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        var all = (bool)(e.Value ?? false);
+        if (all && _fields != null)
+            _selectedFieldIds = _fields.Select(f => f.Id).ToHashSet();
+        else
+            _selectedFieldIds.Clear();
+    }
+
+    private async Task HandleDeleteSelected()
+    {
+        foreach (var id in _selectedFieldIds)
+            await CustomFieldService.DeleteAsync(id);
+
+        _selectedFieldIds.Clear();
+        _message = "Selected fields deleted.";
+        await LoadFieldsAsync();
     }
 }

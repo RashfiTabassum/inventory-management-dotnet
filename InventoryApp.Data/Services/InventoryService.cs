@@ -102,24 +102,6 @@ namespace InventoryApp.Data.Services
         }
 
         // Get inventories owned by a user
-        //public async Task<List<Inventory>> GetOwnedByUserAsync(string userId)
-        //{
-        //    return await _db.Inventories
-        //    .Include(i => i.Owner)
-        //    .Where(i => i.OwnerId == userId)
-        //        .OrderByDescending(i => i.CreatedAt)
-        //        .Select(i => new Inventory
-        //        {
-        //            Id = i.Id,
-        //            Name = i.Name,
-        //            Description = i.Description,
-        //            Category = i.Category,
-        //            CreatedAt = i.CreatedAt,
-        //            OwnerId = i.OwnerId,
-        //            //Tags = i.Tags
-        //        })
-        //        .ToListAsync();
-        //}
         public async Task<List<Inventory>> GetOwnedByUserAsync(string userId)
         {
             return await _db.Inventories
@@ -202,10 +184,14 @@ namespace InventoryApp.Data.Services
                 .Distinct()
                 .ToList();
 
+            var existingTags = await _db.Tags
+                .Where(t => tagNames.Contains(t.Name))
+                .ToListAsync();
+
             foreach (var tagName in tagNames)
             {
-                var existingTag = await _db.Tags
-                    .FirstOrDefaultAsync(t => t.Name == tagName);
+                var existingTag = existingTags
+                    .FirstOrDefault(t => t.Name == tagName);
 
                 if (existingTag != null)
                 {
