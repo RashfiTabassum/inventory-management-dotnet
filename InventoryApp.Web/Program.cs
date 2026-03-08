@@ -98,9 +98,11 @@ app.MapRazorComponents<App>()
 
 using (var scope = app.Services.CreateScope())
 {
-    // Auto-apply pending migrations (creates DB if it doesn't exist)
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.MigrateAsync();
+    if (isPostgres)
+        await db.Database.EnsureCreatedAsync();   // fresh schema with correct PG types
+    else
+        await db.Database.MigrateAsync();          // SQL Server uses existing migrations
 
     await InventoryApp.Data.Seeding.RoleSeeder
         .SeedRolesAsync(scope.ServiceProvider);
