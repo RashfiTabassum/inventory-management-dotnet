@@ -24,7 +24,8 @@ namespace InventoryApp.Data.Services
                 .Include(i => i.Owner)
                 .Where(i =>
                     EF.Functions.Like(i.Name, pattern) ||
-                    EF.Functions.Like(i.Description, pattern))
+                    EF.Functions.Like(i.Description, pattern) ||
+                    i.Tags.Any(t => EF.Functions.Like(t.Name, pattern)))
                 .Select(i => new Inventory
                 {
                     Id = i.Id,

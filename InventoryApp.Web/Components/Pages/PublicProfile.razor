@@ -1,0 +1,71 @@
+﻿@page "/profile/{UserId}"
+@rendermode InteractiveServer
+@inject InventoryService InventoryService
+@inject NavigationManager Navigation
+
+<PageTitle>User Profile</PageTitle>
+
+@if (_inventories == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <h3>@_email</h3>
+    <p class="text-muted">Public Inventories</p>
+
+    @if (_inventories.Count == 0)
+    {
+        <p class="text-muted">No public inventories.</p>
+    }
+    else
+    {
+        <table class="table table-hover table-bordered">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var inv in _inventories)
+                {
+                    <tr @onclick="() => GoToInventory(inv.Id)"
+                        style="cursor:pointer">
+                        <td>@inv.Name</td>
+                        <td>@inv.Category</td>
+                        <td>@inv.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    [Parameter]
+    public string? UserId { get; set; }
+
+    private List<InventoryApp.Data.Models.Inventory>? _inventories;
+    private string _email = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrEmpty(UserId))
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        _inventories = await InventoryService
+            .GetOwnedByUserAsync(UserId);
+
+        _email = _inventories.FirstOrDefault()?.Owner?.Email
+            ?? UserId;
+    }
+    private void GoToInventory(int id)
+    {
+        Navigation.NavigateTo($"/inventories/{id}");
+    }
+}

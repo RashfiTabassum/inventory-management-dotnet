@@ -22,7 +22,9 @@ else
                 <div class="card mb-2">
                     <div class="card-body py-2">
                         <div class="d-flex justify-content-between">
-                            <strong>@comment.Author.Email</strong>
+                            <a href="/profile/@comment.AuthorId" class="fw-bold text-decoration-none">
+                                @comment.Author.Email
+                            </a>
                             <small class="text-muted">
                                 @comment.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
                             </small>

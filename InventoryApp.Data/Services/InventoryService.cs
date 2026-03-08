@@ -27,7 +27,7 @@ namespace InventoryApp.Data.Services
         {
             return await _db.Inventories
                 .Include(i => i.Owner)
-                //.Include(i => i.Tags)
+                .Include(i => i.Tags)
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(count)
                 .Select(i => new Inventory
@@ -39,7 +39,7 @@ namespace InventoryApp.Data.Services
                     CreatedAt = i.CreatedAt,
                     OwnerId = i.OwnerId,
                     Owner = i.Owner,
-                    //Tags = i.Tags
+                    Tags = i.Tags
                 })
                 .ToListAsync();
         }
@@ -105,8 +105,8 @@ namespace InventoryApp.Data.Services
         public async Task<List<Inventory>> GetOwnedByUserAsync(string userId)
         {
             return await _db.Inventories
-                //.Include(i => i.Tags)
-                .Where(i => i.OwnerId == userId)
+            .Include(i => i.Owner)
+            .Where(i => i.OwnerId == userId)
                 .OrderByDescending(i => i.CreatedAt)
                 .Select(i => new Inventory
                 {
@@ -175,6 +175,43 @@ namespace InventoryApp.Data.Services
         public async Task<int> GetTotalUserCountAsync()
         {
             return await _db.Users.CountAsync();
+        }
+
+        public async Task SaveTagsAsync(int inventoryId, string tagsString)
+        {
+            var inventory = await _db.Inventories
+                .Include(i => i.Tags)
+                .FirstOrDefaultAsync(i => i.Id == inventoryId);
+
+            if (inventory == null) return;
+
+            inventory.Tags.Clear();
+
+            var tagNames = tagsString
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => t.Trim().ToLower())
+                .Where(t => !string.IsNullOrEmpty(t))
+                .Distinct()
+                .ToList();
+
+            foreach (var tagName in tagNames)
+            {
+                var existingTag = await _db.Tags
+                    .FirstOrDefaultAsync(t => t.Name == tagName);
+
+                if (existingTag != null)
+                {
+                    inventory.Tags.Add(existingTag);
+                }
+                else
+                {
+                    var newTag = new Tag { Name = tagName };
+                    _db.Tags.Add(newTag);
+                    inventory.Tags.Add(newTag);
+                }
+            }
+
+            await _db.SaveChangesAsync();
         }
     }
 }

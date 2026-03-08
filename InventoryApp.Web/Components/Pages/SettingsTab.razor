@@ -2,6 +2,7 @@
 @inject InventoryService InventoryService
 @using System.Linq
 @inject InventoryApp.Web.Services.CloudinaryService CloudinaryService
+@inject IServiceProvider ServiceProvider
 
 @if (_inventory == null)
 {
@@ -46,11 +47,33 @@ else
                     </label>
                 </div>
             </div>
-            <div class="mb-3">
+            @* <div class="mb-3"> *@
+            @*     <label class="form-label">Tags <small class="text-muted">(comma separated)</small></label> *@
+            @*     <input class="form-control" *@
+            @*            value="@_tags" *@
+            @*            @oninput="e => { _tags = e.Value?.ToString() ?? string.Empty; MarkDirty(); }" /> *@
+            @* </div> *@
+            <div class="mb-3 position-relative">
                 <label class="form-label">Tags <small class="text-muted">(comma separated)</small></label>
                 <input class="form-control"
                        value="@_tags"
-                       @oninput="e => { _tags = e.Value?.ToString() ?? string.Empty; MarkDirty(); }" />
+                       @oninput="HandleTagInput"
+                       @onblur="HideTagSuggestions"
+                       autocomplete="off" />
+                @if (_tagSuggestions.Count > 0)
+                {
+                    <div class="position-absolute bg-white border rounded shadow-sm"
+                         style="z-index:1000; width:100%; max-height:200px; overflow-y:auto;">
+                        @foreach (var suggestion in _tagSuggestions)
+                        {
+                            <div class="px-3 py-2"
+                                 style="cursor:pointer"
+                                 @onmousedown="() => SelectTagSuggestion(suggestion)">
+                                @suggestion
+                            </div>
+                        }
+                    </div>
+                }
             </div>
             <div class="mb-3">
                 <label class="form-label">Inventory Image</label>
@@ -158,6 +181,11 @@ else
             _isDirty = false;
             _saveError = false;
             _statusMessage = "Saved at " + DateTime.Now.ToString("HH:mm:ss");
+
+            using var scope = ServiceProvider.CreateScope();
+            var inventoryService = scope.ServiceProvider
+                .GetRequiredService<InventoryService>();
+            await inventoryService.SaveTagsAsync(InventoryId, _tags);
         }
         else
         {
@@ -212,5 +240,54 @@ else
             _statusMessage = "Image upload failed.";
             _saveError = true;
         }
+    }
+    private List<string> _tagSuggestions = new();
+
+    private async Task HandleTagInput(ChangeEventArgs e)
+    {
+        _tags = e.Value?.ToString() ?? string.Empty;
+        MarkDirty();
+
+        var parts = _tags.Split(',');
+        var lastPart = parts.Last().Trim();
+
+        if (lastPart.Length >= 1)
+        {
+            using var scope = ServiceProvider.CreateScope();
+            var inventoryService = scope.ServiceProvider
+                .GetRequiredService<InventoryService>();
+
+            var allTags = await inventoryService.GetTagCloudAsync();
+            _tagSuggestions = allTags.Keys
+                .Where(t => t.StartsWith(lastPart.ToLower())
+                    && !parts.Take(parts.Length - 1)
+                        .Select(p => p.Trim().ToLower())
+                        .Contains(t))
+                .Take(5)
+                .ToList();
+        }
+        else
+        {
+            _tagSuggestions.Clear();
+        }
+    }
+
+    private void SelectTagSuggestion(string tag)
+    {
+        var parts = _tags.Split(',').ToList();
+        parts[parts.Count - 1] = " " + tag;
+        _tags = string.Join(",", parts).TrimStart() + ", ";
+        _tagSuggestions.Clear();
+        MarkDirty();
+    }
+
+    private void HideTagSuggestions()
+    {
+        Task.Delay(200).ContinueWith(_ =>
+            InvokeAsync(() =>
+            {
+                _tagSuggestions.Clear();
+                StateHasChanged();
+            }));
     }
 }
