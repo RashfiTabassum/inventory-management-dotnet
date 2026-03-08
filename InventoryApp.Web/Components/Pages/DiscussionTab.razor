@@ -27,7 +27,8 @@ else
                                 @comment.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")
                             </small>
                         </div>
-                        <p class="mb-0 mt-1">@comment.Content</p>
+                        @* <p class="mb-0 mt-1">@comment.Content</p> *@
+                        <MarkdownText Content="@comment.Content" />
                     </div>
                 </div>
             }

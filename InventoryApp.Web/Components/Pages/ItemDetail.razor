@@ -277,10 +277,24 @@ else
         _item!.Name = _editName.Trim();
         _item.CustomId = _editCustomId.Trim();
 
-        var success = await ItemService.UpdateAsync(_item);
-        if (!success)
+        // var success = await ItemService.UpdateAsync(_item);
+        // if (!success)
+        // {
+        //     _saveError = "Failed to save. Please try again.";
+        //     return;
+        // 
+        try
         {
-            _saveError = "Failed to save. Please try again.";
+            var success = await ItemService.UpdateAsync(_item);
+            if (!success)
+            {
+                _saveError = "Save conflict — item was modified by someone else. Please reload.";
+                return;
+            }
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException)
+        {
+            _saveError = "This Custom ID already exists in this inventory. Please enter a different one.";
             return;
         }
 

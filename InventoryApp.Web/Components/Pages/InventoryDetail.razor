@@ -17,56 +17,14 @@ else
         <h3>@_inventory.Name</h3>
         <span class="badge bg-secondary">@_inventory.Category</span>
     </div>
+    @if (!string.IsNullOrEmpty(_inventory.Description))
+    {
+        <div class="mb-3">
+            <MarkdownText Content="@_inventory.Description" />
+        </div>
+    }
 
     <!-- Tabs -->
-    @* <ul class="nav nav-tabs mb-3"> *@
-    @*     <li class="nav-item"> *@
-    @*         <button class="nav-link @(ActiveTab == "items" ? "active" : "")" *@
-    @*                 @onclick='() => ActiveTab = "items"'> *@
-    @*             @Loc.Get("Items") *@
-    @*         </button> *@
-    @*     </li> *@
-    @*     <li class="nav-item"> *@
-    @*         <button class="nav-link @(ActiveTab == "discussion" ? "active" : "")" *@
-    @*                 @onclick='() => ActiveTab = "discussion"'> *@
-    @*             @Loc.Get("Discussion") *@
-    @*         </button> *@
-    @*     </li> *@
-    @*     @if (_isOwnerOrAdmin) *@
-    @*     { *@
-    @*         <li class="nav-item"> *@
-    @*             <button class="nav-link @(ActiveTab == "settings" ? "active" : "")" *@
-    @*                     @onclick='() => ActiveTab = "settings"'> *@
-    @*                 Settings *@
-    @*             </button> *@
-    @*         </li> *@
-    @*         <li class="nav-item"> *@
-    @*             <button class="nav-link @(ActiveTab == "fields" ? "active" : "")" *@
-    @*                     @onclick='() => ActiveTab = "fields"'> *@
-    @*                 Custom Fields *@
-    @*             </button> *@
-    @*         </li> *@
-    @*         <li class="nav-item"> *@
-    @*             <button class="nav-link @(ActiveTab == "access" ? "active" : "")" *@
-    @*                     @onclick='() => ActiveTab = "access"'> *@
-    @*                 Access *@
-    @*             </button> *@
-    @*         </li> *@
-    @*         <li class="nav-item"> *@
-    @*             <button class="nav-link @(ActiveTab == "customid" ? "active" : "")" *@
-    @*                     @onclick='() => ActiveTab = "customid"'> *@
-    @*                 Custom ID *@
-    @*             </button> *@
-    @*         </li> *@
-    @*         <li class="nav-item"> *@
-    @*             <button class="nav-link @(ActiveTab == "statistics" ? "active" : "")" *@
-    @*                     @onclick='() => ActiveTab = "statistics"'> *@
-    @*                 Statistics *@
-    @*             </button> *@
-    @*         </li> *@
-    @*     } *@
-    @* </ul> *@
-
     <ul class="nav nav-tabs mb-3">
         <li class="nav-item">
             <button class="nav-link @(ActiveTab == "items" ? "active" : "")"
