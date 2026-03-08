@@ -9,10 +9,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddJsonFile("appsettings.Secrets.json", optional: true, reloadOnChange: false);
 
-// Add DbContext
+// Add DbContext — auto-detect SQL Server vs PostgreSQL from connection string
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    if (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase))
+        options.UseNpgsql(connectionString);   // PostgreSQL (production on Render)
+    else
+        options.UseSqlServer(connectionString); // SQL Server (local development)
+});
 
 //builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
 //    options.UseSqlServer(
@@ -65,7 +70,10 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// Only redirect to HTTPS in development (Render handles SSL at the proxy level)
+if (app.Environment.IsDevelopment())
+    app.UseHttpsRedirection();
+
 app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
@@ -77,6 +85,10 @@ app.MapRazorComponents<App>()
 
 using (var scope = app.Services.CreateScope())
 {
+    // Auto-apply pending migrations (creates DB if it doesn't exist)
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await db.Database.MigrateAsync();
+
     await InventoryApp.Data.Seeding.RoleSeeder
         .SeedRolesAsync(scope.ServiceProvider);
 
