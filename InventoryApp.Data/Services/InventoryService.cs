@@ -10,7 +10,8 @@ namespace InventoryApp.Data.Services
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public InventoryCategory Category { get; set; }
-        public int LikeCount { get; set; }
+        //public int LikeCount { get; set; }
+        public int ItemCount { get; set; }
     }
     public class InventoryService
     {
@@ -129,11 +130,9 @@ namespace InventoryApp.Data.Services
                     Id = i.Id,
                     Name = i.Name,
                     Category = i.Category,
-                    LikeCount = i.Items
-                        .SelectMany(item => item.Likes)
-                        .Count()
+                    ItemCount = i.Items.Count() // Correctly maps the count of items to ItemCount
                 })
-                .OrderByDescending(i => i.LikeCount)
+                .OrderByDescending(i => i.ItemCount) // Fix: Use ItemCount instead of i.Items.Count()
                 .Take(count)
                 .ToListAsync();
         }
