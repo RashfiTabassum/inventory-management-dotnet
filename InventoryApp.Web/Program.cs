@@ -11,9 +11,12 @@ builder.Configuration.AddJsonFile("appsettings.Secrets.json", optional: true, re
 
 // Add DbContext — auto-detect SQL Server vs PostgreSQL from connection string
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
+var isPostgres = connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase)
+              || connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase)
+              || connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    if (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase))
+    if (isPostgres)
         options.UseNpgsql(connectionString);   // PostgreSQL (production on Render)
     else
         options.UseSqlServer(connectionString); // SQL Server (local development)
