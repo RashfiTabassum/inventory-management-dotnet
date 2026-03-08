@@ -14,6 +14,15 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 var isPostgres = connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase)
               || connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase)
               || connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase);
+
+// Convert PostgreSQL URI format to key-value format (Npgsql requires it)
+if (isPostgres && Uri.TryCreate(connectionString, UriKind.Absolute, out var uri))
+{
+    var userInfo = uri.UserInfo.Split(':');
+    connectionString = $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')}" +
+                       $";Username={userInfo[0]};Password={userInfo.ElementAtOrDefault(1)};SSL Mode=Require;Trust Server Certificate=true";
+}
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
     if (isPostgres)
