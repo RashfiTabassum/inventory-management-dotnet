@@ -86,9 +86,15 @@ if (!app.Environment.IsDevelopment())
 }
 
 // Only redirect to HTTPS in development (Render handles SSL at the proxy level)
-app.UseForwardedHeaders(new Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersOptions
+// app.UseForwardedHeaders(new Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersOptions
+// {
+//     ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+// });
+app.Use(async (context, next) =>
 {
-    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+    if (context.Request.Headers.TryGetValue("X-Forwarded-Proto", out var proto))
+        context.Request.Scheme = proto!;
+    await next();
 });
 if (app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
