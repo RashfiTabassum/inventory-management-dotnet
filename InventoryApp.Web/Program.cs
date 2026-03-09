@@ -63,12 +63,14 @@ builder.Services.AddAuthentication()
     {
         options.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
         options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
+        options.CallbackPath = "/signin-google";//new
     })
     .AddGitHub(options =>
     {
         options.ClientId = builder.Configuration["Authentication:GitHub:ClientId"]!;
         options.ClientSecret = builder.Configuration["Authentication:GitHub:ClientSecret"]!;
         options.Scope.Add("user:email");
+        options.CallbackPath = "/signin-github";//new
     });
 // Add Blazor
 builder.Services.AddRazorComponents()
