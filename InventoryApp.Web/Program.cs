@@ -86,9 +86,12 @@ if (!app.Environment.IsDevelopment())
 }
 
 // Only redirect to HTTPS in development (Render handles SSL at the proxy level)
+app.UseForwardedHeaders(new Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+});
 if (app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
-
 app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
