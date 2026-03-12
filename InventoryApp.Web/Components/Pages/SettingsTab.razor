@@ -127,10 +127,11 @@ else
 
     private System.Timers.Timer? _autoSaveTimer;
 
+    private DateTime _lastDirtyTime = DateTime.MinValue;
+
     protected override async Task OnInitializedAsync()
     {
         _inventory = await InventoryService.GetByIdAsync(InventoryId);
-
 
         if (_inventory != null)
         {
@@ -142,19 +143,23 @@ else
         }
 
         _autoSaveTimer = new System.Timers.Timer(8000);
-        _autoSaveTimer.Elapsed += async (s, e) => await AutoSaveAsync();
         _autoSaveTimer.AutoReset = true;
+        _autoSaveTimer.Elapsed += async (s, e) => await AutoSaveAsync();
         _autoSaveTimer.Start();
     }
 
     private void MarkDirty()
     {
         _isDirty = true;
+        _lastDirtyTime = DateTime.UtcNow;
     }
 
     private async Task AutoSaveAsync()
     {
         if (!_isDirty) return;
+        if ((DateTime.UtcNow - _lastDirtyTime).TotalSeconds < 7) return;
+
+        _isDirty = false;
 
         await InvokeAsync(async () =>
         {
@@ -202,7 +207,7 @@ else
             _autoSaveTimer.Dispose();
         }
 
-        if (_isDirty)
+        if (_isDirty && (DateTime.UtcNow - _lastDirtyTime).TotalSeconds >= 2)
             await SaveAsync();
     }
     private bool _uploading = false;
