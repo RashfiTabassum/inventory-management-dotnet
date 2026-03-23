@@ -1,0 +1,168 @@
+@rendermode InteractiveServer
+@inject AuthenticationStateProvider AuthStateProvider
+@inject InventoryApp.Web.Services.DropboxService DropboxService
+@inject InventoryApp.Data.Services.AdminService AdminService
+@inject NavigationManager Navigation
+
+@if (IsOpen)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">🎫 Create Support Ticket</h5>
+                    <button type="button" class="btn-close" @onclick="Close"></button>
+                </div>
+                <div class="modal-body">
+
+                    @if (_submitted)
+                    {
+                        <div class="alert alert-success">
+                            <strong>Ticket submitted!</strong><br />
+                            Your ticket has been uploaded and admins will be notified shortly.
+                            <br /><small class="text-muted">File: @_uploadedPath</small>
+                        </div>
+                    }
+                    else
+                    {
+                        @if (_error != null)
+                        {
+                            <div class="alert alert-danger">@_error</div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label">Summary *</label>
+                            <textarea class="form-control" rows="3"
+                                      @bind="_summary"
+                                      placeholder="Briefly describe the issue…"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Priority *</label>
+                            <select class="form-select" @bind="_priority">
+                                <option value="">— select —</option>
+                                <option value="High">High</option>
+                                <option value="Average">Average</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label text-muted small">Reported by</label>
+                            <input class="form-control form-control-sm" readonly value="@_reportedBy" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label text-muted small">Page link</label>
+                            <input class="form-control form-control-sm" readonly value="@_pageLink" />
+                        </div>
+                    }
+
+                </div>
+
+                @if (!_submitted)
+                {
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="Close">Cancel</button>
+                        <button class="btn btn-primary"
+                                @onclick="SubmitAsync"
+                                disabled="@_submitting">
+                            @(_submitting ? "Uploading…" : "Submit Ticket")
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    /// <summary>Optional inventory title for context (pass from inventory pages).</summary>
+    [Parameter] public string? InventoryTitle { get; set; }
+
+    private string _summary = string.Empty;
+    private string _priority = string.Empty;
+    private string _reportedBy = string.Empty;
+    private string _pageLink = string.Empty;
+    private bool _submitting = false;
+    private bool _submitted = false;
+    private string? _error;
+    private string? _uploadedPath;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsOpen && !_submitted)
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            _reportedBy = user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+                       ?? user.Identity?.Name
+                       ?? "Anonymous";
+            _pageLink = Navigation.Uri;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_summary))
+        {
+            _error = "Please enter a summary.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_priority))
+        {
+            _error = "Please select a priority.";
+            return;
+        }
+
+        _submitting = true;
+        _error = null;
+
+        try
+        {
+            // Collect admin emails
+            var allUsers = await AdminService.GetAllUsersAsync();
+            var adminEmails = allUsers
+                .Where(u => u.Roles.Contains("Admin") && !string.IsNullOrEmpty(u.User.Email))
+                .Select(u => u.User.Email!)
+                .ToList();
+
+            var ticket = new
+            {
+                ReportedBy = _reportedBy,
+                Inventory = InventoryTitle ?? string.Empty,
+                Link = _pageLink,
+                Priority = _priority,
+                Summary = _summary,
+                AdminEmails = adminEmails,
+                CreatedAt = DateTime.UtcNow.ToString("o"),
+            };
+
+            var json = System.Text.Json.JsonSerializer.Serialize(ticket,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+
+            var fileName = $"ticket-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}.json";
+            _uploadedPath = await DropboxService.UploadJsonAsync(json, fileName);
+            _submitted = true;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Upload failed: {ex.Message}";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private async Task Close()
+    {
+        _submitted = false;
+        _summary = string.Empty;
+        _priority = string.Empty;
+        _error = null;
+        await OnClose.InvokeAsync();
+    }
+}

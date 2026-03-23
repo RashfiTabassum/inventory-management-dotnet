@@ -1,0 +1,14 @@
+@rendermode InteractiveServer
+
+<button class="btn btn-sm btn-outline-warning"
+        title="Create support ticket"
+        @onclick="() => _open = true">
+    🎫 Help
+</button>
+
+<SupportTicketDialog IsOpen="_open"
+                     OnClose="EventCallback.Factory.Create(this, () => _open = false)" />
+
+@code {
+    private bool _open = false;
+}

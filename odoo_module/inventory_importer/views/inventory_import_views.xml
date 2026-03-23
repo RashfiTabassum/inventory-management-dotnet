@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── List view: imported inventories ── -->
+    <record id="view_inventory_imported_list" model="ir.ui.view">
+        <field name="name">inventory.imported.list</field>
+        <field name="model">inventory.imported</field>
+        <field name="arch" type="xml">
+            <tree string="Imported Inventories">
+                <field name="name"/>
+                <field name="category"/>
+                <field name="item_count"/>
+                <field name="import_date"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ── Form view: inventory detail ── -->
+    <record id="view_inventory_imported_form" model="ir.ui.view">
+        <field name="name">inventory.imported.form</field>
+        <field name="model">inventory.imported</field>
+        <field name="arch" type="xml">
+            <form string="Imported Inventory">
+                <header>
+                    <button name="action_import" type="object"
+                            string="Import / Refresh from API"
+                            class="btn-primary"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Connection">
+                            <field name="api_base_url" placeholder="https://your-app.onrender.com"/>
+                            <field name="api_token" placeholder="Paste API token here"/>
+                        </group>
+                        <group string="Inventory Info" attrs="{'invisible': [('name','=',False)]}">
+                            <field name="name" readonly="1"/>
+                            <field name="category" readonly="1"/>
+                            <field name="item_count" readonly="1"/>
+                            <field name="import_date" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="Description" attrs="{'invisible': [('description','=',False)]}">
+                        <field name="description" readonly="1" nolabel="1"/>
+                    </group>
+                    <notebook>
+                        <page string="Fields &amp; Aggregations">
+                            <field name="field_ids" readonly="1">
+                                <tree>
+                                    <field name="name"/>
+                                    <field name="field_type"/>
+                                    <field name="agg_average" string="Avg" optional="show"/>
+                                    <field name="agg_min" string="Min" optional="show"/>
+                                    <field name="agg_max" string="Max" optional="show"/>
+                                    <field name="agg_top_values" string="Top Values" optional="show"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Action ── -->
+    <record id="action_inventory_imported" model="ir.actions.act_window">
+        <field name="name">Imported Inventories</field>
+        <field name="res_model">inventory.imported</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+</odoo>

@@ -3,6 +3,8 @@
 @using System.Linq
 @inject InventoryApp.Web.Services.CloudinaryService CloudinaryService
 @inject IServiceProvider ServiceProvider
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
 
 @if (_inventory == null)
 {
@@ -47,12 +49,7 @@ else
                     </label>
                 </div>
             </div>
-            @* <div class="mb-3"> *@
-            @*     <label class="form-label">Tags <small class="text-muted">(comma separated)</small></label> *@
-            @*     <input class="form-control" *@
-            @*            value="@_tags" *@
-            @*            @oninput="e => { _tags = e.Value?.ToString() ?? string.Empty; MarkDirty(); }" /> *@
-            @* </div> *@
+           
             <div class="mb-3 position-relative">
                 <label class="form-label">Tags <small class="text-muted">(comma separated)</small></label>
                 <input class="form-control"
@@ -105,6 +102,40 @@ else
             {
                 <small class="text-muted">Unsaved changes...</small>
             }
+
+            <hr />
+            <h6>Odoo API Token</h6>
+            <p class="text-muted small">
+                Use this token to import inventory data into Odoo via the external API.
+            </p>
+            @if (!string.IsNullOrEmpty(_inventory?.ApiToken))
+            {
+                <div class="input-group mb-2" style="max-width:500px">
+                    <input class="form-control form-control-sm font-monospace"
+                           readonly value="@_inventory.ApiToken" id="apiTokenInput" />
+                    <button class="btn btn-outline-secondary btn-sm"
+                            @onclick="CopyToken" title="Copy token">
+                        📋
+                    </button>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">
+                        API URL: <code>@(NavigationManager.BaseUri)api/inventory/@_inventory.ApiToken</code>
+                    </small>
+                </div>
+            }
+            else
+            {
+                <p class="text-muted small">No token generated yet.</p>
+            }
+            <button class="btn btn-outline-primary btn-sm" @onclick="GenerateToken"
+                    disabled="@_generatingToken">
+                @(_generatingToken ? "Generating..." : (_inventory?.ApiToken == null ? "Generate Token" : "Regenerate Token"))
+            </button>
+            @if (_tokenCopied)
+            {
+                <small class="text-success ms-2">Copied!</small>
+            }
         </div>
     </div>
 }
@@ -140,6 +171,7 @@ else
             _category = _inventory.Category;
             _isPublicWrite = _inventory.IsPublicWrite;
             _tags = string.Join(", ", _inventory.Tags.Select(t => t.Name));
+            // ApiToken is loaded with the inventory entity
         }
 
         _autoSaveTimer = new System.Timers.Timer(8000);
@@ -246,6 +278,34 @@ else
             _saveError = true;
         }
     }
+    private bool _generatingToken = false;
+    private bool _tokenCopied = false;
+
+    private async Task GenerateToken()
+    {
+        _generatingToken = true;
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        var isAdmin = user.IsInRole("Admin");
+
+        var token = await InventoryService.GenerateApiTokenAsync(InventoryId, userId, isAdmin);
+        if (!string.IsNullOrEmpty(token) && _inventory != null)
+            _inventory.ApiToken = token;
+
+        _generatingToken = false;
+    }
+
+    private async Task CopyToken()
+    {
+        // Token is displayed in the input; just show a visual cue
+        _tokenCopied = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        _tokenCopied = false;
+        StateHasChanged();
+    }
+
     private List<string> _tagSuggestions = new();
 
     private async Task HandleTagInput(ChangeEventArgs e)

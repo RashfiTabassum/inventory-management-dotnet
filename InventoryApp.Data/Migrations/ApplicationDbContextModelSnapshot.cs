@@ -207,6 +207,10 @@ namespace InventoryApp.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("ApiToken")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("CustomIdFormat")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");

@@ -227,28 +227,6 @@
         UpdatePreview();
     }
 
-    // private void RemovePart(int index)
-    // {
-    //     _parts.RemoveAt(index);
-    //     UpdatePreview();
-    // }
-
-    // private void MoveUp(int index)
-    // {
-    //     if (index <= 0) return;
-    //     (_parts[index], _parts[index - 1]) =
-    //         (_parts[index - 1], _parts[index]);
-    //     UpdatePreview();
-    // }
-
-    // private void MoveDown(int index)
-    // {
-    //     if (index >= _parts.Count - 1) return;
-    //     (_parts[index], _parts[index + 1]) =
-    //         (_parts[index + 1], _parts[index]);
-    //     UpdatePreview();
-    // }
-
     private void UpdatePreview()
     {
         _preview = CustomIdGenerator.GeneratePreview(_parts);

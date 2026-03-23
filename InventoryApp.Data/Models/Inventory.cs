@@ -42,5 +42,8 @@ namespace InventoryApp.Data.Models
         public int Version { get; set; } = 1;
 
         public string CustomIdFormat { get; set; } = string.Empty;
+
+        [MaxLength(100)]
+        public string? ApiToken { get; set; }
     }
 }

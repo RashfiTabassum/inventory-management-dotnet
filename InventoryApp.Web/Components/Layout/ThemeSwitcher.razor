@@ -7,47 +7,6 @@
     @(_isDark ? "☀️" : "🌙")
 </button>
 
-@* @code { *@
-@*     private bool _isDark = false; *@
-
-@*     protected override async Task OnAfterRenderAsync(bool firstRender) *@
-@*     { *@
-@*         if (firstRender) *@
-@*         { *@
-@*             _isDark = await JS.InvokeAsync<bool>("eval", *@
-@*                 "document.cookie.split(';').some(c => c.trim() === 'theme=dark')"); *@
-
-@*             if (_isDark) *@
-@*             { *@
-@*                 await JS.InvokeVoidAsync("eval", *@
-@*                     "document.body.classList.add('dark')"); *@
-@*             } *@
-
-@*             StateHasChanged(); *@
-@*         } *@
-@*     } *@
-
-@*     private async Task ToggleTheme() *@
-@*     { *@
-@*         _isDark = !_isDark; *@
-@*         var value = _isDark ? "dark" : "light"; *@
-
-@*         await JS.InvokeVoidAsync("eval", *@
-@*             $"document.cookie='theme={value};path=/;max-age=31536000'"); *@
-
-@*         if (_isDark) *@
-@*         { *@
-@*             await JS.InvokeVoidAsync("eval", *@
-@*                 "document.body.classList.add('dark')"); *@
-@*         } *@
-@*         else *@
-@*         { *@
-@*             await JS.InvokeVoidAsync("eval", *@
-@*                 "document.body.classList.remove('dark')"); *@
-@*         } *@
-@*     } *@
-@* } *@
-
 @code {
     private bool _isDark = false;
 

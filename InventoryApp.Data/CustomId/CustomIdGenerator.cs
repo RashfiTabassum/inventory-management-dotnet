@@ -121,8 +121,7 @@ namespace InventoryApp.Data.CustomId
                     CustomIdPartType.Guid =>
                         "a3f2c1d4-...",
                     CustomIdPartType.DateTime =>
-                        System.DateTime.UtcNow.ToString(
-                            part.DateFormat ?? "yyyyMMdd"),
+                        System.DateTime.UtcNow.ToString(part.DateFormat ?? "yyyyMMdd"),
                     CustomIdPartType.Sequence =>
                         "1",
                     _ => string.Empty

@@ -46,6 +46,9 @@ builder.Services.AddScoped<InventoryApp.Data.Services.CommentService>();
 builder.Services.AddScoped<InventoryApp.Data.Services.SearchService>();
 builder.Services.AddSingleton<InventoryApp.Web.Services.LocalizationService>();
 builder.Services.AddSingleton<InventoryApp.Web.Services.CloudinaryService>();
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<InventoryApp.Web.Services.SalesforceService>();
+builder.Services.AddScoped<InventoryApp.Web.Services.DropboxService>();
 
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -107,6 +110,77 @@ app.MapRazorPages();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
+// ── Odoo / External API ─────────────────────────────────────────────────────
+app.MapGet("/api/inventory/{token}", async (
+    string token,
+    InventoryApp.Data.Services.InventoryService inventoryService,
+    InventoryApp.Data.Services.CustomFieldService customFieldService,
+    InventoryApp.Data.Context.ApplicationDbContext db) =>
+{
+    var inventory = await inventoryService.GetByApiTokenAsync(token);
+    if (inventory == null) return Results.NotFound(new { error = "Invalid token" });
+
+    var fields = await customFieldService.GetByInventoryAsync(inventory.Id);
+    var fieldResults = new List<object>();
+
+    foreach (var field in fields)
+    {
+        // Get all values for this field across every item in the inventory
+        var rawValues = await db.CustomFieldValues
+            .Where(v => v.CustomFieldId == field.Id)
+            .Select(v => v.Value)
+            .ToListAsync();
+
+        var nonEmpty = rawValues.Where(v => !string.IsNullOrWhiteSpace(v)).ToList();
+
+        object aggregation;
+        if (field.FieldType == InventoryApp.Data.Models.CustomFieldType.Numeric)
+        {
+            var nums = nonEmpty
+                .Select(v => double.TryParse(v,
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var d) ? (double?)d : null)
+                .Where(d => d.HasValue)
+                .Select(d => d!.Value)
+                .ToList();
+
+            aggregation = nums.Count > 0
+                ? (object)new { average = Math.Round(nums.Average(), 2), min = nums.Min(), max = nums.Max() }
+                : new { average = (double?)null, min = (double?)null, max = (double?)null };
+        }
+        else
+        {
+            var topValues = nonEmpty
+                .GroupBy(v => v)
+                .OrderByDescending(g => g.Count())
+                .Take(5)
+                .Select(g => new { value = g.Key, count = g.Count() })
+                .ToList();
+            aggregation = new { topValues };
+        }
+
+        fieldResults.Add(new
+        {
+            title = field.Title,
+            type = field.FieldType.ToString(),
+            aggregation
+        });
+    }
+
+    return Results.Ok(new
+    {
+        inventoryId = inventory.Id,
+        inventoryTitle = inventory.Name,
+        description = inventory.Description,
+        category = inventory.Category.ToString(),
+        itemCount = inventory.Items.Count,
+        fields = fieldResults
+    });
+})
+.WithName("GetInventoryByToken")
+.WithTags("Odoo API");
+// ─────────────────────────────────────────────────────────────────────────────
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -117,6 +191,10 @@ using (var scope = app.Services.CreateScope())
         await db.Database.ExecuteSqlRawAsync(
             "DROP TABLE IF EXISTS \"__EFMigrationsHistory\"");
         await db.Database.EnsureCreatedAsync();
+
+        // Patch columns added after initial deployment (EnsureCreated won't add them to existing tables)
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Inventories\" ADD COLUMN IF NOT EXISTS \"ApiToken\" varchar(100) NULL");
     }
     else
     {

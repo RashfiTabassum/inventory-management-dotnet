@@ -16,6 +16,7 @@ namespace InventoryApp.Data.Services
             _idGenerator = idGenerator;
         }
 
+        //This loads all items for a specific inventory. Used in `ItemsTab.razor` to show the items table.
         public async Task<List<Item>> GetByInventoryAsync(int inventoryId)
         {
             return await _db.Items
@@ -40,6 +41,7 @@ namespace InventoryApp.Data.Services
                 .ToListAsync();
         }
 
+        //used in ItemDetail.razor when clicked on an item row.
         public async Task<Item?> GetByIdAsync(int id)
         {
             return await _db.Items
@@ -50,6 +52,7 @@ namespace InventoryApp.Data.Services
                 .FirstOrDefaultAsync(i => i.Id == id);
         }
 
+        // used when user clicks Save on the New Item form
         public async Task<Item> CreateAsync(Item item)
         {
             item.CustomId = await _idGenerator.GenerateAsync(item.InventoryId);
@@ -75,20 +78,6 @@ namespace InventoryApp.Data.Services
             item.Version = existing.Version;
             return true;
         }
-
-        //public async Task<bool> DeleteAsync(int id, string userId, bool isAdmin)
-        //{
-        //    var item = await _db.Items
-        //        .FirstOrDefaultAsync(i => i.Id == id);
-
-        //    if (item == null) return false;
-
-        //    if (item.CreatedById != userId && !isAdmin) return false;
-
-        //    _db.Items.Remove(item);
-        //    await _db.SaveChangesAsync();
-        //    return true;
-        //}
         public async Task<bool> DeleteAsync(int id, string userId, bool isAdmin)
         {
             var item = await _db.Items

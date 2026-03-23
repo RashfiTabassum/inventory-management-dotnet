@@ -6,23 +6,6 @@
         <NavMenu />
     </div>
     <main>
-        @* <div class="top-row px-4 d-flex justify-content-between align-items-center"> *@
-        @*     <SearchBox /> *@
-
-        @*     <AuthorizeView> *@
-        @*         <Authorized> *@
-        @*             <span class="me-3">Hello, @context.User.Identity!.Name</span> *@
-        @*             <a href="/account/logout" class="btn btn-sm btn-outline-secondary"> *@
-        @*                 Logout *@
-        @*             </a> *@
-        @*         </Authorized> *@
-        @*         <NotAuthorized> *@
-        @*             <a href="/account/login" class="btn btn-sm btn-outline-primary"> *@
-        @*                 Login *@
-        @*             </a> *@
-        @*         </NotAuthorized> *@
-        @*     </AuthorizeView> *@
-        @* </div> *@
         <div class="top-row px-4 d-flex justify-content-between align-items-center">
             <SearchBox />
             <div class="d-flex align-items-center gap-3">
@@ -30,6 +13,7 @@
                 <LanguageSwitcher />
                 <AuthorizeView>
                     <Authorized>
+                        <HelpButton />
                         <span class="me-3">Hello, @context.User.Identity!.Name</span>
                         <a href="/account/logout" class="btn btn-sm btn-outline-secondary">
                             Logout
@@ -46,6 +30,9 @@
         <article class="content px-4">
             @Body
         </article>
+        <footer class="px-4 py-2 text-muted small border-top text-end">
+            <HelpButton />
+        </footer>
     </main>
 </div>
 
@@ -69,5 +56,4 @@
         if (string.IsNullOrWhiteSpace(_searchQuery)) return;
         Navigation.NavigateTo($"/search?q={Uri.EscapeDataString(_searchQuery)}");
     }
-
 }

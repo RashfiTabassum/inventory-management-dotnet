@@ -3,13 +3,22 @@
 @inject InventoryService InventoryService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
+@inject InventoryApp.Web.Services.SalesforceService SalesforceService
 
 <PageTitle>My Profile</PageTitle>
 
 <AuthorizeView>
     <Authorized>
-        <h3>My Profile</h3>
-        <p class="text-muted">@context.User.Identity!.Name</p>
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+                <h3>My Profile</h3>
+                <p class="text-muted mb-0">@context.User.Identity!.Name</p>
+            </div>
+            <button class="btn btn-outline-primary btn-sm"
+                    @onclick="OpenCrmModal">
+                ☁ Register in CRM (Salesforce)
+            </button>
+        </div>
 
         <hr />
 
@@ -142,6 +151,86 @@
         <p>Please <a href="/account/login">log in</a> to view your profile.</p>
     </NotAuthorized>
 </AuthorizeView>
+
+<!-- ── Salesforce CRM Modal ─────────────────────────────────────────── -->
+@if (_showCrmModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Register in CRM (Salesforce)</h5>
+                    <button type="button" class="btn-close"
+                            @onclick="() => _showCrmModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_crmSuccess)
+                    {
+                        <div class="alert alert-success">
+                            <strong>Done!</strong> Account and Contact created in Salesforce.
+                            <br /><small>Account ID: @_crmAccountId</small><br />
+                            <small>Contact ID: @_crmContactId</small>
+                        </div>
+                    }
+                    else
+                    {
+                        @if (_crmError != null)
+                        {
+                            <div class="alert alert-danger">@_crmError</div>
+                        }
+                        <div class="mb-3 row">
+                            <div class="col">
+                                <label class="form-label">First Name *</label>
+                                <input class="form-control" @bind="_crmFirstName" />
+                            </div>
+                            <div class="col">
+                                <label class="form-label">Last Name *</label>
+                                <input class="form-control" @bind="_crmLastName" />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Phone</label>
+                            <input class="form-control" @bind="_crmPhone" placeholder="+1 555 000 0000" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Company / Account Name *</label>
+                            <input class="form-control" @bind="_crmCompany" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Industry</label>
+                            <select class="form-select" @bind="_crmIndustry">
+                                <option value="">— select —</option>
+                                <option>Technology</option>
+                                <option>Finance</option>
+                                <option>Healthcare</option>
+                                <option>Education</option>
+                                <option>Retail</option>
+                                <option>Manufacturing</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Country</label>
+                            <input class="form-control" @bind="_crmCountry" placeholder="e.g. United States" />
+                        </div>
+                    }
+                </div>
+                @if (!_crmSuccess)
+                {
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary"
+                                @onclick="() => _showCrmModal = false">Cancel</button>
+                        <button class="btn btn-primary"
+                                @onclick="SubmitCrmAsync"
+                                disabled="@_crmSubmitting">
+                            @(_crmSubmitting ? "Sending to Salesforce…" : "Create Account & Contact")
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private List<Inventory>? _ownedInventories;
@@ -319,4 +408,79 @@
     {
         Navigation.NavigateTo($"/inventories/{id}");
     }
+
+    // ── Salesforce CRM ──────────────────────────────────────────────────────
+    private bool _showCrmModal = false;
+    private bool _crmSubmitting = false;
+    private bool _crmSuccess = false;
+    private string? _crmError;
+    private string _crmFirstName = string.Empty;
+    private string _crmLastName = string.Empty;
+    private string _crmPhone = string.Empty;
+    private string _crmCompany = string.Empty;
+    private string _crmIndustry = string.Empty;
+    private string _crmCountry = string.Empty;
+    private string? _crmAccountId;
+    private string? _crmContactId;
+
+    private void OpenCrmModal()
+    {
+        _crmSuccess = false;
+        _crmError = null;
+        // Pre-fill email from current user
+        var nameParts = _currentUserId != null
+            ? (AuthStateProvider.GetAuthenticationStateAsync().Result.User.Identity?.Name ?? "")
+                .Split(' ', 2)
+            : Array.Empty<string>();
+        _crmFirstName = nameParts.Length > 0 ? nameParts[0] : string.Empty;
+        _crmLastName  = nameParts.Length > 1 ? nameParts[1] : string.Empty;
+        _showCrmModal = true;
+    }
+
+    private async Task SubmitCrmAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_crmFirstName) ||
+            string.IsNullOrWhiteSpace(_crmLastName) ||
+            string.IsNullOrWhiteSpace(_crmCompany))
+        {
+            _crmError = "First Name, Last Name and Company are required.";
+            return;
+        }
+
+        _crmSubmitting = true;
+        _crmError = null;
+
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var email = authState.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+                     ?? authState.User.Identity?.Name
+                     ?? string.Empty;
+
+            var req = new InventoryApp.Web.Services.SalesforceContactRequest
+            {
+                FirstName = _crmFirstName.Trim(),
+                LastName  = _crmLastName.Trim(),
+                Email     = email,
+                Phone     = _crmPhone.Trim(),
+                Company   = _crmCompany.Trim(),
+                Industry  = _crmIndustry,
+                Country   = _crmCountry.Trim(),
+            };
+
+            (_crmAccountId, _crmContactId) =
+                await SalesforceService.CreateAccountAndContactAsync(req);
+
+            _crmSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            _crmError = ex.Message;
+        }
+        finally
+        {
+            _crmSubmitting = false;
+        }
+    }
+    // ────────────────────────────────────────────────────────────────────────
 }

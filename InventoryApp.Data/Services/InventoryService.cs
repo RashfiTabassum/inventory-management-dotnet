@@ -167,6 +167,30 @@ namespace InventoryApp.Data.Services
             return await _db.Users.CountAsync();
         }
 
+        public async Task<Inventory?> GetByApiTokenAsync(string token)
+        {
+            return await _db.Inventories
+                .Include(i => i.Owner)
+                .Include(i => i.CustomFields)
+                .Include(i => i.Items)
+                    .ThenInclude(item => item.CustomFieldValues)
+                .FirstOrDefaultAsync(i => i.ApiToken == token);
+        }
+
+        public async Task<string> GenerateApiTokenAsync(int inventoryId, string userId, bool isAdmin)
+        {
+            var inventory = await _db.Inventories
+                .FirstOrDefaultAsync(i => i.Id == inventoryId);
+
+            if (inventory == null) return string.Empty;
+            if (inventory.OwnerId != userId && !isAdmin) return string.Empty;
+
+            var token = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+            inventory.ApiToken = token;
+            await _db.SaveChangesAsync();
+            return token;
+        }
+
         public async Task SaveTagsAsync(int inventoryId, string tagsString)
         {
             var inventory = await _db.Inventories
