@@ -13,6 +13,7 @@
                 <LanguageSwitcher />
                 <AuthorizeView>
                     <Authorized>
+                        <HelpButton />
                         <span class="me-3">Hello, @context.User.Identity!.Name</span>
                         <a href="/account/logout" class="btn btn-sm btn-outline-secondary">
                             Logout
@@ -29,12 +30,8 @@
         <article class="content px-4">
             @Body
         </article>
-        <footer class="px-4 py-2 text-muted small border-top text-end">
-            <AuthorizeView>
-                <Authorized>
-                    <HelpButton />
-                </Authorized>
-            </AuthorizeView>
+        <footer class="px-4 py-1 text-muted small border-top text-end">
+            &copy; InventoryApp
         </footer>
     </main>
 </div>
