@@ -52,9 +52,15 @@ namespace InventoryApp.Web.Pages
             if (result.Succeeded)
                 return Redirect("/");
 
+            if (result.IsLockedOut)
+                return Content("Your account has been blocked. Please contact an administrator.");
+
             var existingUser = await _userManager.FindByEmailAsync(email);
             if (existingUser != null)
             {
+                if (existingUser.IsBlocked)
+                    return Content("Your account has been blocked. Please contact an administrator.");
+
                 await _userManager.AddLoginAsync(existingUser, info);
                 await _signInManager.SignInAsync(existingUser, isPersistent: false);
                 return Redirect("/");
