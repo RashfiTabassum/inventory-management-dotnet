@@ -31,7 +31,11 @@
             @Body
         </article>
         <footer class="px-4 py-2 text-muted small border-top text-end">
-            <HelpButton />
+            <AuthorizeView>
+                <Authorized>
+                    <HelpButton />
+                </Authorized>
+            </AuthorizeView>
         </footer>
     </main>
 </div>

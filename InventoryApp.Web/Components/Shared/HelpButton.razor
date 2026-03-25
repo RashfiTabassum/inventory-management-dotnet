@@ -7,8 +7,10 @@
 </button>
 
 <SupportTicketDialog IsOpen="_open"
+                     InventoryTitle="@InventoryTitle"
                      OnClose="EventCallback.Factory.Create(this, () => _open = false)" />
 
 @code {
+    [Parameter] public string? InventoryTitle { get; set; }
     private bool _open = false;
 }
