@@ -55,14 +55,14 @@ namespace InventoryApp.Data.Services
                     .ToListAsync();
             }
 
-            // Fallback to LIKE if full-text catalog is not set up
-            var pattern = $"%{query}%";
+            // Fallback to case-insensitive contains (works on both SQL Server and PostgreSQL)
+            var lowerQuery = query.ToLower();
             return await _db.Inventories
                 .Include(i => i.Owner)
                 .Where(i =>
-                    EF.Functions.Like(i.Name, pattern) ||
-                    EF.Functions.Like(i.Description, pattern) ||
-                    i.Tags.Any(t => EF.Functions.Like(t.Name, pattern)))
+                    i.Name.ToLower().Contains(lowerQuery) ||
+                    i.Description.ToLower().Contains(lowerQuery) ||
+                    i.Tags.Any(t => t.Name.ToLower().Contains(lowerQuery)))
                 .Select(i => new Inventory
                 {
                     Id = i.Id,
@@ -102,12 +102,12 @@ namespace InventoryApp.Data.Services
                     .ToListAsync();
             }
 
-            var pattern = $"%{query}%";
+            var lowerQuery = query.ToLower();
             return await _db.Items
                 .Include(i => i.CreatedBy)
                 .Where(i =>
-                    EF.Functions.Like(i.Name, pattern) ||
-                    EF.Functions.Like(i.CustomId, pattern))
+                    i.Name.ToLower().Contains(lowerQuery) ||
+                    (i.CustomId != null && i.CustomId.ToLower().Contains(lowerQuery)))
                 .Select(i => new Item
                 {
                     Id = i.Id,
