@@ -63,7 +63,32 @@ A full-featured web application for inventory management built with **C# / Blazo
 ### Admin Panel
 - Checkbox-based bulk selection (select all / deselect all)
 - Bulk actions: Block, Unblock, Make Admin, Remove Admin, Delete
-- Self-protection — cannot block or delete your own account
+- Self-protection — cannot block, delete, or remove admin role from your own account
+
+### Integrations
+
+#### Salesforce CRM
+- "Register in CRM" button on the user profile page (visible only to the logged-in user)
+- Opens a form collecting First Name, Last Name, Phone, Company, Industry, and Country
+- Creates an **Account** and a linked **Contact** in Salesforce via the REST API using OAuth 2.0
+- Returns and displays the created Account ID and Contact ID on success
+
+#### Odoo
+- Each inventory owner can generate an **API token** from the inventory Settings tab
+- The token-protected endpoint `GET /api/inventory/{token}` returns aggregated inventory data:
+  - Numeric fields: average, min, max
+  - Text fields: top most frequent values with counts
+- A custom Odoo module (`odoo_module/inventory_importer`) allows importing inventories into Odoo by API token
+- Odoo stores inventory title, item count, field titles/types, and aggregated results
+- Provides list and detail views; read-only
+
+#### Support Tickets / Dropbox
+- A "Help" button in the navigation bar is available on every page for logged-in users
+- Opens a form to enter a summary and priority (High / Average / Low)
+- Auto-fills the reporter's email and current page URL
+- Collects all admin email addresses from the database
+- Serializes the ticket as JSON and uploads it to **Dropbox** (`/support-tickets/`)
+- JSON includes: `ReportedBy`, `Inventory`, `Link`, `Priority`, `Summary`, `AdminEmails`, `CreatedAt`
 
 ### Main Page
 - Latest inventories
@@ -87,6 +112,9 @@ A full-featured web application for inventory management built with **C# / Blazo
 | Image Storage | Cloudinary |
 | Markdown | Markdig |
 | Drag and Drop | SortableJS |
+| CRM | Salesforce REST API (OAuth 2.0) |
+| ERP | Odoo (custom module) |
+| File Storage | Dropbox API v2 |
 | Deployment | Render (Docker) |
 
 ---
@@ -126,6 +154,19 @@ cd inventory-management-dotnet
     "CloudName": "YOUR_CLOUD_NAME",
     "ApiKey": "YOUR_API_KEY",
     "ApiSecret": "YOUR_API_SECRET"
+  },
+  "Salesforce": {
+    "LoginUrl": "https://YOUR_ORG.my.salesforce.com",
+    "ClientId": "YOUR_CONNECTED_APP_CLIENT_ID",
+    "ClientSecret": "YOUR_CONNECTED_APP_CLIENT_SECRET",
+    "InstanceUrl": "https://YOUR_ORG.my.salesforce.com",
+    "ApiVersion": "v59.0"
+  },
+  "Dropbox": {
+    "AppKey": "YOUR_DROPBOX_APP_KEY",
+    "AppSecret": "YOUR_DROPBOX_APP_SECRET",
+    "RefreshToken": "YOUR_DROPBOX_REFRESH_TOKEN",
+    "UploadFolder": "/support-tickets"
   }
 }
 ```
@@ -149,12 +190,14 @@ InventoryApp/
 │   ├── Services/               # Business logic services
 │   ├── CustomId/               # Custom ID engine
 │   └── Seeding/                # Role and admin seeders
-└── InventoryApp.Web/           # Blazor Server app
-    ├── Components/
-    │   ├── Pages/              # All Blazor pages and tab components
-    │   └── Layout/             # NavMenu, MainLayout, SearchBox, etc.
-    ├── Services/               # LocalizationService, CloudinaryService
-    └── Resources/              # Strings.en.json, Strings.ru.json
+├── InventoryApp.Web/           # Blazor Server app
+│   ├── Components/
+│   │   ├── Pages/              # All Blazor pages and tab components
+│   │   └── Layout/             # NavMenu, MainLayout, SearchBox, etc.
+│   ├── Services/               # SalesforceService, DropboxService, CloudinaryService, etc.
+│   └── Resources/              # Strings.en.json, Strings.ru.json
+└── odoo_module/                # Odoo integration module
+    └── inventory_importer/     # Models, views, and import action
 ```
 
 ---
