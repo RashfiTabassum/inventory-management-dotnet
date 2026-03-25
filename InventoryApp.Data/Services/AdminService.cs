@@ -75,13 +75,77 @@ namespace InventoryApp.Data.Services
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) return false;
 
-            var ownedInventories = await _db.Inventories
-                .Where(i => i.OwnerId == userId)
-                .ToListAsync();
+            // 1. Delete likes by this user
+            var userLikes = await _db.Likes
+                .Where(l => l.UserId == userId).ToListAsync();
+            _db.Likes.RemoveRange(userLikes);
 
-            _db.Inventories.RemoveRange(ownedInventories);
+            // 2. Delete comments by this user
+            var userComments = await _db.Comments
+                .Where(c => c.AuthorId == userId).ToListAsync();
+            _db.Comments.RemoveRange(userComments);
+
+            // 3. Delete access grants for this user
+            var userAccess = await _db.InventoryAccesses
+                .Where(a => a.UserId == userId).ToListAsync();
+            _db.InventoryAccesses.RemoveRange(userAccess);
+
+            // 4. Items created by this user in other people's inventories
+            var foreignItems = await _db.Items
+                .Where(i => i.CreatedById == userId &&
+                            i.Inventory.OwnerId != userId)
+                .Include(i => i.CustomFieldValues)
+                .Include(i => i.Likes)
+                .ToListAsync();
+            foreach (var item in foreignItems)
+            {
+                _db.CustomFieldValues.RemoveRange(item.CustomFieldValues);
+                _db.Likes.RemoveRange(item.Likes);
+            }
+            _db.Items.RemoveRange(foreignItems);
+
             await _db.SaveChangesAsync();
 
+            // 5. Delete owned inventories with all their contents
+            var ownedInventoryIds = await _db.Inventories
+                .Where(i => i.OwnerId == userId)
+                .Select(i => i.Id)
+                .ToListAsync();
+
+            foreach (var invId in ownedInventoryIds)
+            {
+                var items = await _db.Items
+                    .Where(i => i.InventoryId == invId)
+                    .Include(i => i.CustomFieldValues)
+                    .Include(i => i.Likes)
+                    .ToListAsync();
+                foreach (var item in items)
+                {
+                    _db.CustomFieldValues.RemoveRange(item.CustomFieldValues);
+                    _db.Likes.RemoveRange(item.Likes);
+                }
+                _db.Items.RemoveRange(items);
+
+                var fields = await _db.CustomFields
+                    .Where(f => f.InventoryId == invId).ToListAsync();
+                _db.CustomFields.RemoveRange(fields);
+
+                var comments = await _db.Comments
+                    .Where(c => c.InventoryId == invId).ToListAsync();
+                _db.Comments.RemoveRange(comments);
+
+                var access = await _db.InventoryAccesses
+                    .Where(a => a.InventoryId == invId).ToListAsync();
+                _db.InventoryAccesses.RemoveRange(access);
+            }
+
+            var ownedInventories = await _db.Inventories
+                .Where(i => i.OwnerId == userId).ToListAsync();
+            _db.Inventories.RemoveRange(ownedInventories);
+
+            await _db.SaveChangesAsync();
+
+            // 6. Delete the user
             await _userManager.DeleteAsync(user);
             return true;
         }
